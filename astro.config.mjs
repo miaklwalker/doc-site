@@ -6,8 +6,10 @@ import { defineConfig } from "astro/config";
 // GitHub Pages project site: https://miaklwalker.github.io/doc-site/
 // `base` is consumed everywhere through src/lib/links.ts — never hardcode it.
 export default defineConfig({
-	site: "https://miaklwalker.github.io",
-	base: "/doc-site",
+	// site: "https://miaklwalker.github.io",
+	// base: "/doc-site",
+	site: 'https://michaelrwalker.netlify.app/',
+	// base: '/',
 	trailingSlash: "ignore",
 	integrations: [mdx(), sitemap()],
 	markdown: {
