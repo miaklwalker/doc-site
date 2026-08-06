@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { DEMOS } from "../../lib/demos.ts";
 import { firstPage, loadNav } from "../../lib/nav.ts";
 import { loadRegistry } from "../../lib/registry.ts";
 
@@ -14,42 +15,56 @@ const { library } = Astro.props;
 const nav = loadNav(library);
 const start = firstPage(nav);
 const pageCount = nav.flatMap((s) => s.links).filter((l) => !l.external).length;
+const Demo = DEMOS[library.id];
+
 ---
 
 <BaseLayout title={library.name} description={library.tagline} library={library}>
 	<div class="lib-hero">
-		<div class="container">
-			<p class="lib-eyebrow">Library</p>
-			<h1 class="lib-title">{library.name}</h1>
-			<p class="lib-tagline">{library.description}</p>
+		<div class="container lib-hero-inner">
+			<div class="lib-hero-copy">
+				<p class="lib-eyebrow">Library</p>
+				<h1 class="lib-title">{library.name}</h1>
+				<p class="lib-tagline">{library.description}</p>
 
-			<div class="lib-actions">
-				{
-					start && (
-						<a class="button button-primary" href={start.url}>
-							Read the docs
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-								<path d="M5 12h14M13 6l6 6-6 6" />
-							</svg>
-						</a>
-					)
-				}
-				<a class="button" href={`https://github.com/${library.repo}`} target="_blank" rel="noreferrer noopener">
-					GitHub
-				</a>
-				<a class="button" href={`https://www.npmjs.com/package/${library.package}`} target="_blank" rel="noreferrer noopener">
-					npm
-				</a>
+				<div class="lib-actions">
+					{
+						start && (
+							<a class="button button-primary" href={start.url}>
+								Read the docs
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+									<path d="M5 12h14M13 6l6 6-6 6" />
+								</svg>
+							</a>
+						)
+					}
+					<a class="button" href={`https://github.com/${library.repo}`} target="_blank" rel="noreferrer noopener">
+						GitHub
+					</a>
+					<a class="button" href={`https://www.npmjs.com/package/${library.package}`} target="_blank" rel="noreferrer noopener">
+						npm
+					</a>
+				</div>
+
+				<div class="install">
+					<code>npm install {library.package}</code>
+					<button type="button" class="install-copy" data-install={`npm install ${library.package}`} aria-label="Copy install command">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+							<rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+						</svg>
+					</button>
+				</div>
 			</div>
 
-			<div class="install">
-				<code>npm install {library.package}</code>
-				<button type="button" class="install-copy" data-install={`npm install ${library.package}`} aria-label="Copy install command">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-						<rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-					</svg>
-				</button>
-			</div>
+			{
+				Demo && (
+					<div class="lib-hero-demo">
+						<div class="demo-frame">
+							<Demo />
+						</div>
+					</div>
+				)
+			}
 		</div>
 	</div>
 
@@ -104,8 +119,32 @@ const pageCount = nav.flatMap((s) => s.links).filter((l) => !l.external).length;
 		background: radial-gradient(closest-side, color-mix(in oklab, var(--accent) 18%, transparent), transparent);
 		pointer-events: none;
 	}
-	.lib-hero > .container {
+
+	.lib-hero-inner {
 		position: relative;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		align-items: center;
+		gap: 3rem;
+	}
+	.lib-hero-inner:has(.lib-hero-demo) {
+		grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+	}
+	.lib-hero-copy {
+		min-width: 0;
+	}
+	.lib-hero-demo {
+		min-width: 0;
+	}
+
+	@media (max-width: 900px) {
+		.lib-hero-inner:has(.lib-hero-demo) {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 2.25rem;
+		}
+		.lib-hero-demo {
+			order: -1;
+		}
 	}
 
 	.lib-eyebrow {

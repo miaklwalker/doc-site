@@ -1,10 +1,6 @@
 ---
-import BraidDemo from "../components/demos/BraidDemo.astro";
-import BucketsDemo from "../components/demos/BucketsDemo.astro";
-import SearchDemo from "../components/demos/SearchDemo.astro";
-import StagehandDemo from "../components/demos/StagehandDemo.astro";
-import StepQueueDemo from "../components/demos/StepQueueDemo.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { DEMOS } from "../lib/demos.ts";
 import { href } from "../lib/links.ts";
 import { firstPage, loadNav } from "../lib/nav.ts";
 import { loadRegistry } from "../lib/registry.ts";
@@ -24,7 +20,7 @@ const SHOWCASE: Record<string, { headline: string; highlights: string[] }> = {
 		],
 	},
 	"step-queue": {
-		headline: "Complex Jobs, Easy to digest steps",
+		headline: "Steps that resume exactly where they failed",
 		highlights: [
 			"Each step is typed against exactly what the steps before it produced",
 			"A retried job restarts on the step it failed on, not from the top",
@@ -32,7 +28,7 @@ const SHOWCASE: Record<string, { headline: string; highlights: string[] }> = {
 		],
 	},
 	stagehand: {
-		headline: "Orchestrate complex workflows with ease",
+		headline: "A failed step rolls back everything that already succeeded",
 		highlights: [
 			"A failing step rolls back every step that already succeeded",
 			"A typed context threads through the entire run",
@@ -154,47 +150,16 @@ const libraries = loadRegistry().map((library) => {
 
 					<div class="showcase-demo">
 						<div class="demo-frame">
-							{library.id === "buckets" && <BucketsDemo />}
-							{library.id === "step-queue" && <StepQueueDemo />}
-							{library.id === "stagehand" && <StagehandDemo />}
-							{library.id === "search" && <SearchDemo />}
-							{library.id === "braid" && <BraidDemo />}
+							{(() => {
+								const Demo = DEMOS[library.id];
+								return Demo && <Demo />;
+							})()}
 						</div>
 					</div>
 				</div>
 			</section>
 		))
 	}
-
-	<section class="container how">
-		<h2 class="how-title">Docs live with the code</h2>
-		<div class="how-grid">
-			<div class="how-step">
-				<span class="how-num">01</span>
-				<h3>Write in the repo</h3>
-				<p>
-					Each library owns a <code>docs/</code> folder. Pages are plain markdown, sitting next to
-					the source they describe, reviewed in the same pull request.
-				</p>
-			</div>
-			<div class="how-step">
-				<span class="how-num">02</span>
-				<h3>Declare the sidebar</h3>
-				<p>
-					A <code>docs/config.json</code> lists the sections and page order. Reordering the sidebar
-					never means renaming a file.
-				</p>
-			</div>
-			<div class="how-step">
-				<span class="how-num">03</span>
-				<h3>The site assembles it</h3>
-				<p>
-					This site holds a registry of libraries and nothing else. At build time it pulls each
-					<code>docs/</code> folder and renders everything you see.
-				</p>
-			</div>
-		</div>
-	</section>
 
 	<footer class="footer">
 		<div class="container footer-inner">
@@ -469,28 +434,11 @@ const libraries = loadRegistry().map((library) => {
 		min-width: 0;
 	}
 
-	.demo-frame {
-		position: relative;
-		padding: 1.5rem;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		background: var(--bg-elevated);
-		box-shadow: 0 18px 40px -24px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 22%));
-		container-type: inline-size;
-	}
+	/* Each showcase section carries its own accent via --card, so it overrides
+	   the shared .demo-frame gradient (which defaults to --accent) with that
+	   instead — see global.css for the base rule. */
 	.demo-frame::before {
-		content: "";
-		position: absolute;
-		inset: -1px;
-		border-radius: inherit;
-		padding: 1px;
 		background: linear-gradient(160deg, color-mix(in oklab, var(--card) 45%, transparent), transparent 55%);
-		-webkit-mask:
-			linear-gradient(#000 0 0) content-box,
-			linear-gradient(#000 0 0);
-		-webkit-mask-composite: xor;
-		mask-composite: exclude;
-		pointer-events: none;
 	}
 
 	@media (max-width: 900px) {
@@ -507,57 +455,6 @@ const libraries = loadRegistry().map((library) => {
 		.demo-frame {
 			padding: 1.125rem;
 		}
-	}
-
-	/* --- how ----------------------------------------------------------------- */
-
-	.how {
-		padding-block: 4rem 5rem;
-		border-top: 1px solid var(--border);
-	}
-
-	.how-title {
-		font-size: 1.375rem;
-		font-weight: 650;
-		letter-spacing: -0.024em;
-		margin-bottom: 2rem;
-	}
-
-	.how-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-		gap: 2rem;
-	}
-
-	.how-num {
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		color: var(--text-faint);
-	}
-
-	.how-step h3 {
-		margin-top: 0.5rem;
-		font-size: 0.9375rem;
-		font-weight: 620;
-		color: var(--text);
-	}
-
-	.how-step p {
-		margin-top: 0.5rem;
-		font-size: 0.875rem;
-		line-height: 1.7;
-		color: var(--text-muted);
-		text-wrap: pretty;
-	}
-
-	.how-step code {
-		font-family: var(--font-mono);
-		font-size: 0.8em;
-		padding: 0.1em 0.32em;
-		border-radius: 4px;
-		background: var(--bg-subtle);
-		border: 1px solid var(--border);
-		color: var(--text);
 	}
 
 	/* --- footer -------------------------------------------------------------- */
