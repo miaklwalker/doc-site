@@ -1,0 +1,52 @@
+---
+import { getCollection, render } from "astro:content";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { loadNav, neighbours } from "../../lib/nav.ts";
+import { loadRegistry } from "../../lib/registry.ts";
+
+export async function getStaticPaths() {
+	const libraries = loadRegistry();
+	const docs = await getCollection("docs");
+
+	return libraries.flatMap((library) => {
+		const nav = loadNav(library);
+
+		return docs
+			.filter((entry) => entry.id.startsWith(`${library.id}/`))
+			.map((entry) => {
+				const slug = entry.id.slice(library.id.length + 1);
+				return {
+					params: { library: library.id, slug },
+					props: { library, nav, entry },
+				};
+			});
+	});
+}
+
+const { library, nav, entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const { prev, next } = neighbours(nav, entry.id);
+
+// Fall back to the sidebar label when a page omits a frontmatter title, so a
+// missing title degrades to something sensible rather than an empty heading.
+const navLabel = nav.flatMap((s) => s.links).find((l) => l.entryId === entry.id)?.label;
+const title = entry.data.title ?? navLabel ?? entry.id;
+
+// Path of this page inside the library's docs directory, for the "edit" link.
+const slug = entry.id.slice(library.id.length + 1);
+const sourcePath = `${slug}${entry.filePath?.endsWith(".mdx") ? ".mdx" : ".md"}`;
+---
+
+<DocsLayout
+	library={library}
+	nav={nav}
+	title={title}
+	description={entry.data.description}
+	headings={headings}
+	currentId={entry.id}
+	prev={prev}
+	next={next}
+	sourcePath={sourcePath}
+>
+	<Content />
+</DocsLayout>

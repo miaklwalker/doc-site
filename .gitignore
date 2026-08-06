@@ -1,0 +1,15 @@
+# Astro
+dist/
+.astro/
+
+# Docs pulled from the library repos at build time — never committed.
+docs-cache/
+.clones/
+
+node_modules/
+*.log
+.DS_Store
+.env
+.env.production
+.idea
+

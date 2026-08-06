@@ -1,0 +1,158 @@
+---
+import type { MarkdownHeading } from "astro";
+import PrevNext from "../components/PrevNext.astro";
+import Sidebar from "../components/Sidebar.astro";
+import TableOfContents from "../components/TableOfContents.astro";
+import type { NavLink, NavSection } from "../lib/nav.ts";
+import type { Library } from "../lib/registry.ts";
+import BaseLayout from "./BaseLayout.astro";
+
+type Props = {
+	library: Library;
+	nav: NavSection[];
+	title: string;
+	description?: string;
+	headings: MarkdownHeading[];
+	currentId: string;
+	prev?: NavLink;
+	next?: NavLink;
+	/** Path of the source file inside the library repo, for the edit link. */
+	sourcePath?: string;
+};
+
+const { library, nav, title, description, headings, currentId, prev, next, sourcePath } = Astro.props;
+
+const editUrl = sourcePath
+	? `https://github.com/${library.repo}/edit/${library.branch}/${library.docsDir}/${sourcePath}`
+	: undefined;
+---
+
+<BaseLayout title={title} description={description} library={library} bare>
+	<div class="docs-shell">
+		<Sidebar nav={nav} library={library} currentId={currentId} />
+
+		<main id="main" class="docs-main">
+			<article class="docs-article" data-pagefind-body>
+				<div data-pagefind-meta={`library:${library.name}`} hidden></div>
+				<header class="docs-header">
+					<p class="docs-eyebrow">{library.name}</p>
+					<h1 class="docs-title" data-pagefind-meta="title">{title}</h1>
+					{description && <p class="docs-lede">{description}</p>}
+				</header>
+
+				<div class="prose">
+					<slot />
+				</div>
+
+				<PrevNext prev={prev} next={next} />
+			</article>
+		</main>
+
+		<TableOfContents headings={headings} editUrl={editUrl} />
+	</div>
+</BaseLayout>
+
+<style>
+	.docs-shell {
+		display: flex;
+		align-items: flex-start;
+		gap: 2rem;
+		max-width: 100rem;
+		margin-inline: auto;
+		padding-inline: 1.25rem;
+	}
+
+	.docs-main {
+		flex: 1;
+		min-width: 0;
+		padding-block: 2.5rem 5rem;
+	}
+
+	.docs-article {
+		max-width: var(--content-max);
+	}
+
+	.docs-header {
+		margin-bottom: 2.25rem;
+	}
+
+	.docs-eyebrow {
+		margin-bottom: 0.5rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--accent);
+	}
+
+	.docs-title {
+		font-size: 2.125rem;
+		font-weight: 680;
+		letter-spacing: -0.032em;
+		line-height: 1.15;
+		text-wrap: balance;
+		color: var(--text);
+	}
+
+	.docs-lede {
+		margin-top: 0.75rem;
+		font-size: 1.0625rem;
+		line-height: 1.6;
+		color: var(--text-muted);
+		text-wrap: pretty;
+	}
+
+	@media (max-width: 1100px) {
+		.docs-shell {
+			gap: 0;
+		}
+		.docs-main {
+			padding-block: 2rem 4rem;
+		}
+		.docs-title {
+			font-size: 1.75rem;
+		}
+	}
+</style>
+
+<script>
+	// Copy buttons on code blocks, and anchor links on headings.
+	for (const pre of document.querySelectorAll<HTMLPreElement>(".prose pre")) {
+		const button = document.createElement("button");
+		button.className = "copy-button";
+		button.type = "button";
+		button.setAttribute("aria-label", "Copy code");
+		button.innerHTML =
+			'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+
+		button.addEventListener("click", async () => {
+			await navigator.clipboard.writeText(pre.innerText.trimEnd());
+			button.dataset.copied = "true";
+			button.setAttribute("aria-label", "Copied");
+			setTimeout(() => {
+				delete button.dataset.copied;
+				button.setAttribute("aria-label", "Copy code");
+			}, 1600);
+		});
+
+		pre.appendChild(button);
+	}
+
+	for (const heading of document.querySelectorAll<HTMLElement>(".prose h2[id], .prose h3[id], .prose h4[id]")) {
+		const anchor = document.createElement("a");
+		anchor.className = "heading-anchor";
+		anchor.href = `#${heading.id}`;
+		anchor.textContent = "#";
+		anchor.setAttribute("aria-label", `Link to ${heading.textContent ?? "section"}`);
+		heading.appendChild(anchor);
+	}
+
+	// Markdown tables need a scroll container on narrow screens.
+	for (const table of document.querySelectorAll<HTMLTableElement>(".prose table")) {
+		if (table.parentElement?.classList.contains("table-wrap")) continue;
+		const wrap = document.createElement("div");
+		wrap.className = "table-wrap";
+		table.replaceWith(wrap);
+		wrap.appendChild(table);
+	}
+</script>

@@ -1,0 +1,397 @@
+---
+/**
+ * A cheap-to-expensive cascade. A typo'd query falls through the exact-match
+ * algorithms, gets caught by the fuzzy one, and the pipeline stops there —
+ * which is the pattern the library exists to make declarative.
+ */
+const QUERY = 'MacBook Pr 16"';
+
+const ALGOS = [
+	{ name: "naive", note: "exact" },
+	{ name: "kmp", note: "substring" },
+	{ name: "levenshtein", note: "fuzzy" },
+	{ name: "soundex", note: "phonetic" },
+];
+
+const MATCHES = [
+	{ candidate: 'MacBook Pro 16"', confidence: 0.93 },
+	{ candidate: 'MacBook Pro 14"', confidence: 0.81 },
+];
+---
+
+<div class="demo" data-search-demo>
+	<div class="query-row">
+		<svg class="query-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+			<circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+		</svg>
+		<span class="query-text" data-query></span><span class="query-cursor" data-cursor></span>
+	</div>
+
+	<ul class="algos">
+		{
+			ALGOS.map((algo, i) => (
+				<li class="algo" data-algo={i}>
+					<span class="algo-dot" aria-hidden="true" />
+					<span class="algo-name">{algo.name}</span>
+					<span class="algo-note">{algo.note}</span>
+					<span class="algo-status" data-status={i}>
+						—
+					</span>
+				</li>
+			))
+		}
+	</ul>
+
+	<div class="results" data-results>
+		{
+			MATCHES.map((match, i) => (
+				<div class="match" data-match={i}>
+					<span class="match-name">{match.candidate}</span>
+					<span class="match-bar">
+						<span class="match-fill" data-fill={i} />
+					</span>
+					<span class="match-score" data-score={i}>
+						{match.confidence.toFixed(2)}
+					</span>
+				</div>
+			))
+		}
+	</div>
+</div>
+
+<style>
+	.demo {
+		display: flex;
+		flex-direction: column;
+		gap: 0.875rem;
+	}
+
+	/* --- query --------------------------------------------------------------- */
+
+	.query-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.6rem 0.75rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg-subtle);
+		min-height: 2.25rem;
+	}
+	.query-icon {
+		flex-shrink: 0;
+		color: var(--text-faint);
+	}
+	.query-text {
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+		color: var(--text);
+		white-space: pre;
+	}
+	.query-cursor {
+		display: inline-block;
+		width: 1.5px;
+		height: 0.95rem;
+		background: var(--card, #059669);
+		animation: blink 1.05s steps(2, start) infinite;
+	}
+	.query-cursor[data-idle="true"] {
+		opacity: 0;
+		animation: none;
+	}
+
+	@keyframes blink {
+		50% {
+			opacity: 0;
+		}
+	}
+
+	/* --- algorithm rows ------------------------------------------------------ */
+
+	.algos {
+		list-style: none;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.algo {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.34rem 0.5rem;
+		border-radius: 6px;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		opacity: 0.45;
+		transition:
+			opacity 0.25s var(--ease),
+			background 0.25s var(--ease);
+	}
+	.algo[data-state="running"],
+	.algo[data-state="miss"],
+	.algo[data-state="hit"] {
+		opacity: 1;
+	}
+	.algo[data-state="running"] {
+		background: color-mix(in oklab, var(--card, #059669) 9%, transparent);
+	}
+	.algo[data-state="skipped"] {
+		opacity: 0.32;
+	}
+
+	.algo-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		flex-shrink: 0;
+		background: var(--border-strong);
+		transition:
+			background 0.25s var(--ease),
+			box-shadow 0.25s var(--ease);
+	}
+	.algo[data-state="running"] .algo-dot {
+		background: var(--card, #059669);
+		box-shadow: 0 0 0 3px color-mix(in oklab, var(--card, #059669) 20%, transparent);
+	}
+	.algo[data-state="hit"] .algo-dot {
+		background: var(--card, #059669);
+	}
+	.algo[data-state="miss"] .algo-dot {
+		background: var(--text-faint);
+	}
+
+	.algo-name {
+		color: var(--text);
+		font-weight: 550;
+	}
+	.algo-note {
+		color: var(--text-faint);
+		font-size: 0.6875rem;
+	}
+
+	.algo-status {
+		margin-left: auto;
+		font-size: 0.6875rem;
+		color: var(--text-faint);
+		white-space: nowrap;
+	}
+	.algo[data-state="hit"] .algo-status {
+		color: var(--card, #059669);
+		font-weight: 600;
+	}
+
+	/* --- results ------------------------------------------------------------- */
+
+	.results {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--border);
+		min-height: 3.5rem;
+	}
+
+	.match {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		opacity: 0;
+		transform: translateY(3px);
+		transition:
+			opacity 0.3s var(--ease),
+			transform 0.3s var(--ease);
+	}
+	.match[data-shown="true"] {
+		opacity: 1;
+		transform: none;
+	}
+
+	.match-name {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.match-bar {
+		width: 5rem;
+		height: 4px;
+		border-radius: 2px;
+		background: var(--bg-subtle);
+		border: 1px solid var(--border);
+		overflow: hidden;
+		flex-shrink: 0;
+	}
+	.match-fill {
+		display: block;
+		height: 100%;
+		width: 0;
+		background: var(--card, #059669);
+		transition: width 0.55s var(--ease);
+	}
+
+	.match-score {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--text-faint);
+		width: 2.25rem;
+		text-align: right;
+		flex-shrink: 0;
+	}
+
+	@container (max-width: 24rem) {
+		.algo-note {
+			display: none;
+		}
+		.match-bar {
+			width: 3rem;
+		}
+	}
+</style>
+
+<script>
+	const root = document.querySelector<HTMLElement>("[data-search-demo]");
+
+	if (root) {
+		const el = root;
+		const QUERY = 'MacBook Pr 16"';
+		const MATCHES = [0.93, 0.81];
+		const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+		const queryEl = el.querySelector<HTMLElement>("[data-query]");
+		const cursorEl = el.querySelector<HTMLElement>("[data-cursor]");
+		const algos = [...el.querySelectorAll<HTMLElement>("[data-algo]")];
+		const statuses = [...el.querySelectorAll<HTMLElement>("[data-status]")];
+		const matches = [...el.querySelectorAll<HTMLElement>("[data-match]")];
+		const fills = [...el.querySelectorAll<HTMLElement>("[data-fill]")];
+
+		// Same cancellation contract as the other demos: halting must settle every
+		// pending sleep, or the playthrough suspends forever and never resumes.
+		let gen = 0;
+		const pending = new Set<{ id: number; settle: () => void }>();
+
+		const sleep = (ms: number) =>
+			new Promise<void>((resolve) => {
+				const entry = { id: 0, settle: resolve };
+				entry.id = window.setTimeout(() => {
+					pending.delete(entry);
+					resolve();
+				}, ms);
+				pending.add(entry);
+			});
+
+		const halt = () => {
+			gen++;
+			for (const entry of pending) {
+				clearTimeout(entry.id);
+				entry.settle();
+			}
+			pending.clear();
+		};
+
+		const reset = () => {
+			if (queryEl) queryEl.textContent = "";
+			if (cursorEl) delete cursorEl.dataset.idle;
+			for (const a of algos) delete a.dataset.state;
+			for (const s of statuses) s.textContent = "—";
+			for (const m of matches) delete m.dataset.shown;
+			for (const f of fills) f.style.width = "0";
+		};
+
+		async function cycle(myGen: number) {
+			reset();
+			await sleep(600);
+			if (myGen !== gen) return;
+
+			// Type the query, typo and all.
+			for (let i = 0; i <= QUERY.length; i++) {
+				if (myGen !== gen) return;
+				if (queryEl) queryEl.textContent = QUERY.slice(0, i);
+				await sleep(55);
+			}
+			if (myGen !== gen) return;
+			if (cursorEl) cursorEl.dataset.idle = "true";
+			await sleep(450);
+			if (myGen !== gen) return;
+
+			// naive and kmp scan and miss; levenshtein catches the typo.
+			const plan = [
+				{ i: 0, ms: 520, state: "miss", label: "no match" },
+				{ i: 1, ms: 520, state: "miss", label: "no match" },
+				{ i: 2, ms: 780, state: "hit", label: "2 matches" },
+			];
+
+			for (const step of plan) {
+				algos[step.i].dataset.state = "running";
+				statuses[step.i].textContent = "scanning";
+				await sleep(step.ms);
+				if (myGen !== gen) return;
+				algos[step.i].dataset.state = step.state;
+				statuses[step.i].textContent = step.label;
+				await sleep(180);
+				if (myGen !== gen) return;
+			}
+
+			// stop-on-match: everything after the first hit never runs.
+			algos[3].dataset.state = "skipped";
+			statuses[3].textContent = "skipped";
+			await sleep(250);
+			if (myGen !== gen) return;
+
+			for (const [i, confidence] of MATCHES.entries()) {
+				matches[i].dataset.shown = "true";
+				fills[i].style.width = `${confidence * 100}%`;
+				await sleep(280);
+				if (myGen !== gen) return;
+			}
+
+			await sleep(2800);
+		}
+
+		async function loop() {
+			const myGen = gen;
+			while (myGen === gen) await cycle(myGen);
+		}
+
+		const restart = () => {
+			halt();
+			void loop();
+		};
+
+		function renderStatic() {
+			if (queryEl) queryEl.textContent = QUERY;
+			if (cursorEl) cursorEl.dataset.idle = "true";
+			const finished = ["miss", "miss", "hit", "skipped"];
+			const labels = ["no match", "no match", "2 matches", "skipped"];
+			algos.forEach((a, i) => {
+				a.dataset.state = finished[i];
+				statuses[i].textContent = labels[i];
+			});
+			MATCHES.forEach((confidence, i) => {
+				matches[i].dataset.shown = "true";
+				fills[i].style.width = `${confidence * 100}%`;
+			});
+		}
+
+		if (reduced) {
+			renderStatic();
+		} else {
+			restart();
+			new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						if (entry.isIntersecting) restart();
+						else halt();
+					}
+				},
+				{ threshold: 0.25 },
+			).observe(el);
+		}
+	}
+</script>

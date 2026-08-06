@@ -1,0 +1,288 @@
+---
+/** A terminal replaying a script run: phases, steps, a progress bar, a summary. */
+---
+
+<div class="demo" data-stagehand-demo>
+	<div class="term">
+		<div class="term-bar">
+			<span class="term-dot" style="background:#ff5f57"></span>
+			<span class="term-dot" style="background:#febc2e"></span>
+			<span class="term-dot" style="background:#28c840"></span>
+			<span class="term-title">deploy.ts</span>
+		</div>
+		<div class="term-body" data-term aria-live="off"></div>
+	</div>
+</div>
+
+<style>
+	.term {
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		background: var(--bg-code);
+		overflow: hidden;
+	}
+
+	.term-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.55rem 0.75rem;
+		border-bottom: 1px solid var(--border);
+		background: color-mix(in oklab, var(--bg-subtle) 70%, transparent);
+	}
+
+	.term-dot {
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.term-title {
+		margin-left: 0.4rem;
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--text-faint);
+	}
+
+	.term-body {
+		padding: 0.875rem 1rem 1rem;
+		min-height: 15.5rem;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		line-height: 1.75;
+		color: var(--text-muted);
+		overflow: hidden;
+	}
+
+	.term-body :global(.ln) {
+		white-space: pre;
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.term-body :global(.ln-cmd) {
+		color: var(--text);
+	}
+	.term-body :global(.ln-cmd .sigil) {
+		color: var(--card, #8b5cf6);
+		font-weight: 700;
+	}
+	.term-body :global(.ln-phase) {
+		color: var(--text);
+		font-weight: 600;
+		margin-top: 0.35rem;
+	}
+	.term-body :global(.mark-run) {
+		color: var(--card, #8b5cf6);
+	}
+	.term-body :global(.mark-ok) {
+		color: #22c55e;
+	}
+	.term-body :global(.dim) {
+		color: var(--text-faint);
+	}
+	.term-body :global(.bar-fill) {
+		color: var(--card, #8b5cf6);
+	}
+	.term-body :global(.bar-rest) {
+		color: var(--border-strong);
+	}
+	.term-body :global(.cursor) {
+		display: inline-block;
+		width: 0.5em;
+		height: 1em;
+		vertical-align: text-bottom;
+		background: var(--card, #8b5cf6);
+		animation: blink 1s steps(2, start) infinite;
+	}
+
+	@keyframes blink {
+		50% {
+			opacity: 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.term-body :global(.cursor) {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	const root = document.querySelector<HTMLElement>("[data-stagehand-demo]");
+	const body = root?.querySelector<HTMLElement>("[data-term]");
+
+	if (root && body) {
+		// Narrowing from the guard above is not carried into hoisted function
+		// declarations, so alias it once here.
+		const term = body;
+		const SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+		const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+		// `run` invalidates an in-flight playthrough; `myRun` is the one currently
+		// allowed to touch the DOM. Declared up front so the helpers can see them.
+		let run = 0;
+		let myRun = 0;
+		let playing = false;
+		const timers = new Set<{ id: number; settle: () => void }>();
+
+		// Cancelling settles pending sleeps rather than just clearing them — an
+		// unsettled promise would leave the playthrough suspended forever, holding
+		// its closures alive with no way to resume.
+		const sleep = (ms: number) =>
+			new Promise<void>((resolve) => {
+				const entry = { id: 0, settle: resolve };
+				entry.id = window.setTimeout(() => {
+					timers.delete(entry);
+					resolve();
+				}, ms);
+				timers.add(entry);
+			});
+
+		const clearTimers = () => {
+			for (const entry of timers) {
+				clearTimeout(entry.id);
+				entry.settle();
+			}
+			timers.clear();
+		};
+
+		const line = (html = "", cls = "") => {
+			const el = document.createElement("span");
+			el.className = `ln ${cls}`.trim();
+			el.innerHTML = html;
+			term.appendChild(el);
+			return el;
+		};
+
+		const pad = (name: string, width = 22) =>
+			name.length >= width ? name : name + " ".repeat(width - name.length);
+
+		/** Spin a step's marker for `ms`, then settle it to a green tick. */
+		async function step(name: string, ms: number, detail: string) {
+			const el = line(`  <span class="mark-run">${SPIN[0]}</span> ${pad(name)}`);
+			const started = performance.now();
+			let frame = 0;
+
+			while (performance.now() - started < ms) {
+				if (run !== myRun) return;
+				frame = (frame + 1) % SPIN.length;
+				el.innerHTML = `  <span class="mark-run">${SPIN[frame]}</span> ${pad(name)}`;
+				await sleep(70);
+			}
+			if (run !== myRun) return;
+			el.innerHTML = `  <span class="mark-ok">✔</span> ${pad(name)}<span class="dim">${detail}</span>`;
+		}
+
+		/** A step whose detail is a filling progress bar. */
+		async function progressStep(name: string, ms: number) {
+			const WIDTH = 10;
+			const el = line();
+			const ticks = 24;
+
+			for (let i = 0; i <= ticks; i++) {
+				if (run !== myRun) return;
+				const pct = i / ticks;
+				const filled = Math.round(pct * WIDTH);
+				const spin = SPIN[i % SPIN.length];
+				el.innerHTML =
+					`  <span class="mark-run">${spin}</span> ${pad(name)}` +
+					`<span class="bar-fill">${"█".repeat(filled)}</span>` +
+					`<span class="bar-rest">${"░".repeat(WIDTH - filled)}</span>` +
+					`<span class="dim"> ${String(Math.round(pct * 100)).padStart(3)}%</span>`;
+				await sleep(ms / ticks);
+			}
+			if (run !== myRun) return;
+			el.innerHTML =
+				`  <span class="mark-ok">✔</span> ${pad(name)}` +
+				`<span class="bar-fill">${"█".repeat(WIDTH)}</span><span class="dim"> 100%</span>`;
+		}
+
+		async function typeCommand(text: string) {
+			const el = line("", "ln-cmd");
+			for (let i = 0; i <= text.length; i++) {
+				if (run !== myRun) return;
+				el.innerHTML = `<span class="sigil">$</span> ${text.slice(0, i)}<span class="cursor"></span>`;
+				await sleep(45);
+			}
+			if (run !== myRun) return;
+			el.innerHTML = `<span class="sigil">$</span> ${text}`;
+		}
+
+		async function play() {
+			myRun = ++run;
+			term.innerHTML = "";
+
+			await typeCommand("node deploy.ts");
+			if (run !== myRun) return;
+			await sleep(400);
+
+			line("", "ln");
+			line("Validation", "ln-phase");
+			await step("resolve commit", 900, "1.2s");
+			if (run !== myRun) return;
+			await step("check working tree", 700, "0.4s");
+			if (run !== myRun) return;
+
+			line("", "ln");
+			line("Release", "ln-phase");
+			await progressStep("upload artifact", 1600);
+			if (run !== myRun) return;
+			await step("publish release", 1000, "0.9s");
+			if (run !== myRun) return;
+
+			line("", "ln");
+			line(`<span class="mark-ok">✔</span> deploy finished in <span class="dim">4.1s</span>`);
+
+			await sleep(3200);
+			if (run !== myRun) return;
+			play();
+		}
+
+		function renderStatic() {
+			term.innerHTML = "";
+			line(`<span class="sigil">$</span> node deploy.ts`, "ln-cmd");
+			line("", "ln");
+			line("Validation", "ln-phase");
+			line(`  <span class="mark-ok">✔</span> ${pad("resolve commit")}<span class="dim">1.2s</span>`);
+			line(`  <span class="mark-ok">✔</span> ${pad("check working tree")}<span class="dim">0.4s</span>`);
+			line("", "ln");
+			line("Release", "ln-phase");
+			line(
+				`  <span class="mark-ok">✔</span> ${pad("upload artifact")}<span class="bar-fill">██████████</span><span class="dim"> 100%</span>`,
+			);
+			line(`  <span class="mark-ok">✔</span> ${pad("publish release")}<span class="dim">0.9s</span>`);
+			line("", "ln");
+			line(`<span class="mark-ok">✔</span> deploy finished in <span class="dim">4.1s</span>`);
+		}
+
+		if (reduced) {
+			renderStatic();
+		} else {
+			// Run by default; the observer only pauses when off screen. See the note
+			// in BucketsDemo — a demo that never starts is worse than one that runs
+			// a moment early.
+			playing = true;
+			play();
+			new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						if (entry.isIntersecting) {
+							if (!playing) {
+								playing = true;
+								play();
+							}
+						} else {
+							run++; // invalidate the in-flight run
+							playing = false;
+							clearTimers();
+						}
+					}
+				},
+				{ threshold: 0.25 },
+			).observe(root);
+		}
+	}
+</script>

@@ -1,0 +1,400 @@
+---
+/**
+ * Three detail sources braid into the main collection. Each is indexed once
+ * into a Map, then every main row costs one lookup per source — which is the
+ * whole difference between O(n + m) and the O(n × m) of .find() inside .map().
+ */
+const SOURCES = [
+	{ name: "channel_one", size: 3, colour: "#fb7185", y: 26, join: 258 },
+	{ name: "shopify", size: 3, colour: "#fbbf24", y: 62, join: 306 },
+	{ name: "variations", size: 5, colour: "#38bdf8", y: 98, join: 354 },
+];
+
+const SPINE_Y = 146;
+---
+
+<div class="demo" data-braid-demo>
+	<svg viewBox="0 0 460 172" role="img" aria-label="Three detail sources indexed into maps and braided into the main product collection" data-svg>
+		<defs>
+			<path id="braid-spine" d="M132,146 H444" fill="none" />
+			{
+				SOURCES.map((s) => (
+					<path
+						id={`braid-${s.name}`}
+						d={`M132,${s.y} H${s.join - 46} C${s.join - 16},${s.y} ${s.join - 26},${SPINE_Y} ${s.join},${SPINE_Y}`}
+						fill="none"
+					/>
+				))
+			}
+		</defs>
+
+		{/* strands */}
+		{
+			SOURCES.map((s) => (
+				<use href={`#braid-${s.name}`} class="strand" style={`--strand:${s.colour}`} data-strand={s.name} />
+			))
+		}
+		<use href="#braid-spine" class="spine" />
+
+		{/* labels */}
+		{
+			SOURCES.map((s) => (
+				<>
+					<text x="6" y={s.y + 3.5} class="src-label">
+						{s.name}
+					</text>
+					<text x="128" y={s.y + 3.5} text-anchor="end" class="src-index" data-index={s.name}>
+						—
+					</text>
+				</>
+			))
+		}
+		<text x="6" y={SPINE_Y + 3.5} class="src-label main">products</text>
+		<text x="128" y={SPINE_Y + 3.5} text-anchor="end" class="src-index main">3 rows</text>
+
+		{/* junction dots */}
+		{
+			SOURCES.map((s) => (
+				<circle cx={s.join} cy={SPINE_Y} r="3.5" class="junction" style={`--strand:${s.colour}`} data-junction={s.name} />
+			))
+		}
+
+		{/* the row travelling the spine */}
+		<circle r="4.5" class="row-token" data-token>
+			<animateMotion dur="3.4s" begin="0s" repeatCount="indefinite">
+				<mpath href="#braid-spine" />
+			</animateMotion>
+		</circle>
+	</svg>
+
+	<div class="out">
+		<code class="out-row" data-out>
+			<span class="tok-brace">{"{"}</span>
+			<span class="tok-key">sku</span><span class="tok-punc">:</span>
+			<span class="tok-str">"TS-100"</span><span class="tok-punc">,</span>
+			{
+				SOURCES.map((s) => (
+					<span class="tok-part" data-part={s.name} style={`--strand:${s.colour}`}>
+						<span class="tok-key">{s.name}</span>
+						<span class="tok-punc">:</span>
+						<span class="tok-val">{s.name === "variations" ? "[2]" : "{…}"}</span>
+						{s.name !== "variations" && <span class="tok-punc">,</span>}
+					</span>
+				))
+			}
+			<span class="tok-brace">{"}"}</span>
+		</code>
+	</div>
+
+	<div class="stats">
+		<span class="stat" data-stat-braid>9 lookups</span>
+		<span class="stat-vs">vs</span>
+		<span class="stat stat-naive" data-stat-naive>33 scans</span>
+		<span class="stat-note">nested .find()</span>
+	</div>
+</div>
+
+<style>
+	.demo {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	svg {
+		width: 100%;
+		height: auto;
+		display: block;
+		font-family: var(--font-mono);
+	}
+
+	.strand {
+		stroke: var(--strand);
+		stroke-width: 1.75;
+		fill: none;
+		opacity: 0.25;
+		stroke-dasharray: 5 6;
+		transition: opacity 0.35s var(--ease);
+	}
+	.strand[data-flowing="true"] {
+		opacity: 1;
+		animation: flow 0.9s linear infinite;
+	}
+
+	@keyframes flow {
+		to {
+			stroke-dashoffset: -11;
+		}
+	}
+
+	.spine {
+		stroke: var(--border-strong);
+		stroke-width: 2;
+		fill: none;
+	}
+
+	.src-label {
+		font-size: 10px;
+		fill: var(--text-muted);
+	}
+	.src-label.main {
+		fill: var(--text);
+		font-weight: 600;
+	}
+
+	.src-index {
+		font-size: 9px;
+		fill: var(--text-faint);
+	}
+	.src-index.main {
+		fill: var(--text-faint);
+	}
+	.src-index[data-indexed="true"] {
+		fill: var(--text);
+	}
+
+	.junction {
+		fill: var(--bg-elevated);
+		stroke: var(--border-strong);
+		stroke-width: 1.5;
+		transition:
+			fill 0.3s var(--ease),
+			stroke 0.3s var(--ease);
+	}
+	.junction[data-lit="true"] {
+		fill: var(--strand);
+		stroke: var(--strand);
+	}
+
+	.row-token {
+		fill: var(--card, #e11d48);
+		opacity: 0;
+		transition: opacity 0.3s var(--ease);
+	}
+	.row-token[data-visible="true"] {
+		opacity: 1;
+	}
+
+	/* --- output row ---------------------------------------------------------- */
+
+	.out {
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg-subtle);
+		overflow-x: auto;
+	}
+
+	.out-row {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		white-space: nowrap;
+	}
+
+	.tok-brace,
+	.tok-punc {
+		color: var(--text-faint);
+	}
+	.tok-key {
+		color: var(--text);
+	}
+	.tok-str,
+	.tok-val {
+		color: var(--text-muted);
+	}
+
+	.tok-part {
+		opacity: 0;
+		transition: opacity 0.3s var(--ease);
+	}
+	.tok-part[data-shown="true"] {
+		opacity: 1;
+	}
+	.tok-part[data-shown="true"] .tok-key {
+		color: var(--strand);
+	}
+
+	/* --- stats --------------------------------------------------------------- */
+
+	.stats {
+		display: flex;
+		align-items: baseline;
+		gap: 0.45rem;
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+	}
+
+	.stat {
+		padding: 0.12rem 0.4rem;
+		border-radius: 4px;
+		background: color-mix(in oklab, var(--card, #e11d48) 14%, transparent);
+		color: var(--card, #e11d48);
+		font-weight: 600;
+	}
+
+	.stat-vs {
+		color: var(--text-faint);
+	}
+
+	.stat-naive {
+		background: var(--bg-subtle);
+		border: 1px solid var(--border);
+		color: var(--text-faint);
+		font-weight: 500;
+		text-decoration: line-through;
+	}
+
+	.stat-note {
+		color: var(--text-faint);
+		font-size: 0.625rem;
+	}
+
+	@container (max-width: 24rem) {
+		.stat-note {
+			display: none;
+		}
+	}
+</style>
+
+<script>
+	const root = document.querySelector<HTMLElement>("[data-braid-demo]");
+
+	if (root) {
+		const el = root;
+		const svg = el.querySelector("svg") as SVGSVGElement | null;
+		const NAMES = ["channel_one", "shopify", "variations"];
+		const SIZES = [3, 3, 5];
+		const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+		const strand = (n: string) => el.querySelector<SVGElement>(`[data-strand="${n}"]`);
+		const indexEl = (n: string) => el.querySelector<SVGTextElement>(`[data-index="${n}"]`);
+		const junction = (n: string) => el.querySelector<SVGElement>(`[data-junction="${n}"]`);
+		const part = (n: string) => el.querySelector<HTMLElement>(`[data-part="${n}"]`);
+		const token = el.querySelector<SVGElement>("[data-token]");
+
+		// Same cancellation contract as the other demos: halting settles every
+		// pending sleep so the playthrough can unwind instead of suspending.
+		let gen = 0;
+		const pending = new Set<{ id: number; settle: () => void }>();
+
+		const sleep = (ms: number) =>
+			new Promise<void>((resolve) => {
+				const entry = { id: 0, settle: resolve };
+				entry.id = window.setTimeout(() => {
+					pending.delete(entry);
+					resolve();
+				}, ms);
+				pending.add(entry);
+			});
+
+		const halt = () => {
+			gen++;
+			for (const entry of pending) {
+				clearTimeout(entry.id);
+				entry.settle();
+			}
+			pending.clear();
+		};
+
+		const reset = () => {
+			for (const n of NAMES) {
+				strand(n)?.removeAttribute("data-flowing");
+				junction(n)?.removeAttribute("data-lit");
+				const idx = indexEl(n);
+				if (idx) {
+					idx.textContent = "—";
+					idx.removeAttribute("data-indexed");
+				}
+				part(n)?.removeAttribute("data-shown");
+			}
+			token?.removeAttribute("data-visible");
+		};
+
+		async function cycle(myGen: number) {
+			reset();
+			await sleep(700);
+			if (myGen !== gen) return;
+
+			// Phase 1 — index each source exactly once.
+			for (const [i, name] of NAMES.entries()) {
+				const idx = indexEl(name);
+				if (idx) idx.textContent = "indexing";
+				await sleep(340);
+				if (myGen !== gen) return;
+				if (idx) {
+					idx.textContent = `Map(${SIZES[i]})`;
+					idx.dataset.indexed = "true";
+				}
+				strand(name)?.setAttribute("data-flowing", "true");
+				await sleep(220);
+				if (myGen !== gen) return;
+			}
+
+			await sleep(420);
+			if (myGen !== gen) return;
+
+			// Phase 2 — one row walks the spine, taking one lookup per source.
+			svg?.setCurrentTime(0);
+			let isFirst = true
+            let offset = isFirst ? 1320 : 620
+			token?.setAttribute("data-visible", "true");
+			for (const name of NAMES) {
+				await sleep(offset);
+				if (myGen !== gen) return;
+				junction(name)?.setAttribute("data-lit", "true");
+				part(name)?.setAttribute("data-shown", "true");
+				isFirst = false;
+				offset = isFirst ? 1320 : 620;
+			}
+
+			await sleep(700);
+			token?.setAttribute("data-visible", "false");
+			await sleep(1000)
+		}
+
+		async function loop() {
+			const myGen = gen;
+			while (myGen === gen) await cycle(myGen);
+		}
+
+		const restart = () => {
+			halt();
+			void loop();
+		};
+
+		function renderStatic() {
+			NAMES.forEach((name, i) => {
+				const idx = indexEl(name);
+				if (idx) {
+					idx.textContent = `Map(${SIZES[i]})`;
+					idx.dataset.indexed = "true";
+				}
+				strand(name)?.setAttribute("data-flowing", "true");
+				junction(name)?.setAttribute("data-lit", "true");
+				part(name)?.setAttribute("data-shown", "true");
+			});
+			svg?.pauseAnimations();
+		}
+
+		if (reduced) {
+			renderStatic();
+			for (const n of NAMES) strand(n)?.removeAttribute("data-flowing");
+		} else {
+			restart();
+			new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						if (entry.isIntersecting) {
+							svg?.unpauseAnimations();
+							restart();
+						} else {
+							halt();
+							svg?.pauseAnimations();
+						}
+					}
+				},
+				{ threshold: 0.25 },
+			).observe(el);
+		}
+	}
+</script>

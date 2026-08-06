@@ -1,0 +1,391 @@
+---
+/**
+ * A job walking a four-step pipeline. Data accumulates as it goes, step three
+ * fails once, and the retry resumes at step three rather than restarting —
+ * which is the whole reason the library exists.
+ */
+const STEPS = [
+	{ name: "fetchUser", yields: "user" },
+	{ name: "chargeCard", yields: "chargeId" },
+	{ name: "sendReceipt", yields: "receiptId" },
+	{ name: "archive", yields: "done" },
+];
+---
+
+<div class="demo" data-stepqueue-demo>
+	<div class="pipeline">
+		{
+			STEPS.map((step, i) => (
+				<>
+					{i > 0 && <span class="connector" data-connector={i} />}
+					<div class="step" data-step={i}>
+						<span class="step-node">
+							<span class="step-index">{i + 1}</span>
+							<svg class="step-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" aria-hidden="true">
+								<path d="m5 13 4 4L19 7" />
+							</svg>
+							<svg class="step-cross" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" aria-hidden="true">
+								<path d="M6 6l12 12M18 6 6 18" />
+							</svg>
+						</span>
+						<span class="step-name">{step.name}</span>
+					</div>
+				</>
+			))
+		}
+	</div>
+
+	<div class="readout">
+		<div class="readout-row">
+			<span class="readout-key">job.data</span>
+			<code class="readout-value" data-data>{"{}"}</code>
+		</div>
+		<div class="readout-row">
+			<span class="readout-key">status</span>
+			<span class="readout-status" data-status>queued</span>
+		</div>
+	</div>
+</div>
+
+<style>
+	.demo {
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+		padding: 0.5rem 0;
+	}
+
+	.pipeline {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.25rem;
+	}
+
+	.step {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+		flex-shrink: 0;
+		width: 4.5rem;
+	}
+
+	.step-node {
+		position: relative;
+		display: grid;
+		place-items: center;
+		width: 2.25rem;
+		height: 2.25rem;
+		border-radius: 50%;
+		border: 1.5px solid var(--border-strong);
+		background: var(--bg-elevated);
+		color: var(--text-faint);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		font-weight: 600;
+		transition:
+			border-color 0.25s var(--ease),
+			color 0.25s var(--ease),
+			background 0.25s var(--ease),
+			transform 0.25s var(--ease);
+	}
+
+	.step-tick,
+	.step-cross {
+		position: absolute;
+		width: 0.95rem;
+		height: 0.95rem;
+		opacity: 0;
+		transition: opacity 0.2s var(--ease);
+	}
+
+	.step-name {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--text-faint);
+		text-align: center;
+		line-height: 1.3;
+		transition: color 0.25s var(--ease);
+		/* Step names are identifiers — breaking one mid-word reads as a typo. */
+		white-space: nowrap;
+	}
+
+	/* running */
+	.step[data-state="running"] .step-node {
+		border-color: var(--card, #0ea5e9);
+		color: var(--card, #0ea5e9);
+		transform: scale(1.12);
+		box-shadow: 0 0 0 4px color-mix(in oklab, var(--card, #0ea5e9) 14%, transparent);
+	}
+	.step[data-state="running"] .step-name {
+		color: var(--text);
+	}
+
+	/* done */
+	.step[data-state="done"] .step-node {
+		border-color: var(--card, #0ea5e9);
+		background: color-mix(in oklab, var(--card, #0ea5e9) 16%, transparent);
+		color: var(--card, #0ea5e9);
+	}
+	.step[data-state="done"] .step-index {
+		opacity: 0;
+	}
+	.step[data-state="done"] .step-tick {
+		opacity: 1;
+	}
+
+	/* failed */
+	.step[data-state="failed"] .step-node {
+		border-color: #f43f5e;
+		background: color-mix(in oklab, #f43f5e 16%, transparent);
+		color: #f43f5e;
+		animation: shake 0.4s var(--ease);
+	}
+	.step[data-state="failed"] .step-index {
+		opacity: 0;
+	}
+	.step[data-state="failed"] .step-cross {
+		opacity: 1;
+	}
+
+	@keyframes shake {
+		25% {
+			transform: translateX(-3px);
+		}
+		75% {
+			transform: translateX(3px);
+		}
+	}
+
+	.connector {
+		flex: 1;
+		height: 1.5px;
+		margin-top: 1.125rem;
+		background: var(--border-strong);
+		position: relative;
+		overflow: hidden;
+		min-width: 0.75rem;
+	}
+	.connector::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		background: var(--card, #0ea5e9);
+		transform: scaleX(0);
+		transform-origin: left;
+		transition: transform 0.4s var(--ease);
+	}
+	.connector[data-filled="true"]::after {
+		transform: scaleX(1);
+	}
+
+	/* --- readout ------------------------------------------------------------ */
+
+	.readout {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		padding: 0.75rem 0.875rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg-subtle);
+	}
+
+	.readout-row {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		min-height: 1.25rem;
+	}
+
+	.readout-key {
+		flex-shrink: 0;
+		width: 3.75rem;
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--text-faint);
+	}
+
+	.readout-value {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--text);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.readout-status {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		color: var(--text-muted);
+	}
+	.readout-status[data-tone="run"] {
+		color: var(--card, #0ea5e9);
+	}
+	.readout-status[data-tone="fail"] {
+		color: #f43f5e;
+	}
+	.readout-status[data-tone="ok"] {
+		color: #22c55e;
+	}
+
+	/* Names must stay on one line, so shrink the type as the frame narrows. */
+	@container (max-width: 34rem) {
+		.step {
+			width: 4rem;
+		}
+		.step-name {
+			font-size: 0.625rem;
+		}
+	}
+
+	@container (max-width: 24rem) {
+		.step {
+			width: 3.25rem;
+		}
+		.step-name {
+			font-size: 0.5625rem;
+		}
+		.step-node {
+			width: 1.875rem;
+			height: 1.875rem;
+		}
+	}
+</style>
+
+<script>
+	type Tone = "idle" | "run" | "fail" | "ok";
+
+	const root = document.querySelector<HTMLElement>("[data-stepqueue-demo]");
+
+	if (root) {
+		const steps = [...root.querySelectorAll<HTMLElement>("[data-step]")];
+		const connectors = [...root.querySelectorAll<HTMLElement>("[data-connector]")];
+		const dataEl = root.querySelector<HTMLElement>("[data-data]");
+		const statusEl = root.querySelector<HTMLElement>("[data-status]");
+		const YIELDS = ["user", "chargeId", "receiptId", "done"];
+		const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+		// A generation token rather than a cancelled flag. Pausing has to do two
+		// things: invalidate the current pass, and let its promise chain unwind.
+		// Clearing a pending timeout without settling its promise leaves cycle()
+		// suspended forever, which wedges the demo for good.
+		let gen = 0;
+		const pending = new Set<{ id: number; settle: () => void }>();
+
+		const sleep = (ms: number) =>
+			new Promise<void>((resolve) => {
+				const entry = { id: 0, settle: resolve };
+				entry.id = window.setTimeout(() => {
+					pending.delete(entry);
+					resolve();
+				}, ms);
+				pending.add(entry);
+			});
+
+		/** Invalidate the running pass and release anything awaiting it. */
+		const halt = () => {
+			gen++;
+			for (const entry of pending) {
+				clearTimeout(entry.id);
+				entry.settle();
+			}
+			pending.clear();
+		};
+
+		const setStatus = (text: string, tone: Tone) => {
+			if (!statusEl) return;
+			statusEl.textContent = text;
+			statusEl.dataset.tone = tone;
+		};
+
+		const setData = (keys: string[]) => {
+			if (!dataEl) return;
+			dataEl.textContent = keys.length ? `{ ${keys.join(", ")} }` : "{}";
+		};
+
+		const reset = () => {
+			for (const step of steps) delete step.dataset.state;
+			for (const c of connectors) delete c.dataset.filled;
+			setData([]);
+			setStatus("queued", "idle");
+		};
+
+		/** One full pass: run, fail at step 3, retry from step 3, finish. */
+		async function cycle(myGen: number) {
+			const acquired: string[] = [];
+			reset();
+			await sleep(700);
+			if (myGen !== gen) return;
+
+			for (let i = 0; i < steps.length; i++) {
+				steps[i].dataset.state = "running";
+				setStatus(`running step ${i + 1}`, "run");
+				await sleep(750);
+				if (myGen !== gen) return;
+
+				// Step 3 fails the first time through.
+				if (i === 2 && !acquired.includes("receiptId-retried")) {
+					steps[i].dataset.state = "failed";
+					setStatus("failed — will retry", "fail");
+					await sleep(1100);
+					if (myGen !== gen) return;
+
+					// The job resumes here; earlier steps keep their state and data.
+					setStatus("resuming at step 3", "run");
+					acquired.push("receiptId-retried");
+					await sleep(900);
+					if (myGen !== gen) return;
+					i -= 1;
+					continue;
+				}
+
+				steps[i].dataset.state = "done";
+				acquired.push(YIELDS[i]);
+				setData(acquired.filter((k) => !k.includes("-retried")));
+				if (connectors[i]) connectors[i].dataset.filled = "true";
+				await sleep(300);
+				if (myGen !== gen) return;
+			}
+
+			setStatus("completed", "ok");
+			await sleep(2200);
+		}
+
+		async function loop() {
+			const myGen = gen;
+			while (myGen === gen) await cycle(myGen);
+		}
+
+		/** Stop whatever is in flight, then begin a fresh pass. */
+		const restart = () => {
+			halt();
+			void loop();
+		};
+
+		if (reduced) {
+			// Show the finished state rather than animating.
+			for (const step of steps) step.dataset.state = "done";
+			for (const c of connectors) c.dataset.filled = "true";
+			setData(YIELDS);
+			setStatus("completed", "ok");
+		} else {
+			// Run by default; the observer only pauses when off screen. See the note
+			// in BucketsDemo — a demo that never starts is worse than one that runs
+			// a moment early.
+			restart();
+			new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						if (entry.isIntersecting) restart();
+						else halt();
+					}
+				},
+				{ threshold: 0.25 },
+			).observe(root);
+		}
+	}
+</script>

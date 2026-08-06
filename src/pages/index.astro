@@ -1,0 +1,580 @@
+---
+import BraidDemo from "../components/demos/BraidDemo.astro";
+import BucketsDemo from "../components/demos/BucketsDemo.astro";
+import SearchDemo from "../components/demos/SearchDemo.astro";
+import StagehandDemo from "../components/demos/StagehandDemo.astro";
+import StepQueueDemo from "../components/demos/StepQueueDemo.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { href } from "../lib/links.ts";
+import { firstPage, loadNav } from "../lib/nav.ts";
+import { loadRegistry } from "../lib/registry.ts";
+
+/**
+ * Editorial copy for the showcase rows. Kept here rather than in libraries.json
+ * because it is presentation, not registry data — and because each row is
+ * paired with a bespoke demo component anyway.
+ */
+const SHOWCASE: Record<string, { headline: string; highlights: string[] }> = {
+	buckets: {
+		headline: "Rules that read like sentences",
+		highlights: [
+			"Conditions are answered once per item, then reused by every bucket",
+			"Buckets are boolean expressions — AND, OR, NOT, ONLY",
+			"Bucket names and the shape of the report are inferred, not declared",
+		],
+	},
+	"step-queue": {
+		headline: "Complex Jobs, Easy to digest steps",
+		highlights: [
+			"Each step is typed against exactly what the steps before it produced",
+			"A retried job restarts on the step it failed on, not from the top",
+			"Wait on child jobs without hand-rolling WaitingChildrenError",
+		],
+	},
+	stagehand: {
+		headline: "Orchestrate complex workflows with ease",
+		highlights: [
+			"A failing step rolls back every step that already succeeded",
+			"A typed context threads through the entire run",
+			"Live rendering on a TTY, plain line output in CI",
+		],
+	},
+	search: {
+		headline: "Cheap algorithms first, fuzzy ones only if they miss",
+		highlights: [
+			"Registering an algorithm widens the type — an unknown run-order name will not compile",
+			"Eleven algorithms ship, and your own implement the same contract",
+			"Stop at the first hit, or collect everything with matched rows culled",
+		],
+	},
+	braid: {
+		headline: "Joins that scale linearly not quadratically",
+		highlights: [
+			"Every source is indexed once, then one lookup per row — O(n + m), not O(n × m)",
+			"Each join widens the output row, so a duplicate name or mismatched key will not compile",
+			'Keys match the way a Map matches: no coercion, so "2" never silently joins 2',
+		],
+	},
+};
+
+const libraries = loadRegistry().map((library) => {
+	const nav = loadNav(library);
+	return {
+		...library,
+		start: firstPage(nav)?.url ?? href(library.id),
+		pageCount: nav.flatMap((s) => s.links).filter((l) => !l.external).length,
+		...SHOWCASE[library.id],
+	};
+});
+---
+
+<BaseLayout
+	title="@michaelrwalker"
+	description="Small, aggressively type-safe TypeScript libraries — and their documentation."
+>
+	<section class="hero">
+		<div class="hero-glow" aria-hidden="true"></div>
+		<div class="container hero-inner">
+			<p class="hero-eyebrow">TypeScript libraries</p>
+			<h1 class="hero-title">
+				Small tools that make<br />
+				<span class="hero-gradient">illegal states unrepresentable.</span>
+			</h1>
+			<p class="hero-lede">
+				A set of focused, aggressively type-safe libraries. Every doc page here is written and
+				versioned inside the library's own repository — this site just knows where to look.
+			</p>
+			<div class="hero-actions">
+				<a class="button button-primary" href={libraries[0]?.start}>
+					Get started
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+						<path d="M5 12h14M13 6l6 6-6 6" />
+					</svg>
+				</a>
+				<button type="button" class="button" data-search-open>
+					Search the docs
+					<kbd>⌘K</kbd>
+				</button>
+			</div>
+
+			<nav class="hero-jump" aria-label="Libraries">
+				{
+					libraries.map((library) => (
+						<a class="jump" href={`#${library.id}`} style={`--card:${library.accentDark}`}>
+							<span class="jump-dot" aria-hidden="true" />
+							{library.name}
+						</a>
+					))
+				}
+			</nav>
+		</div>
+	</section>
+
+	{
+		libraries.map((library, i) => (
+			<section
+				class="showcase"
+				id={library.id}
+				style={`--card:${library.accent};--card-dark:${library.accentDark}`}
+				data-flip={i % 2 === 1 ? "true" : undefined}
+			>
+				<div class="container showcase-inner">
+					<div class="showcase-copy">
+						<p class="showcase-eyebrow">
+							<span class="showcase-dot" aria-hidden="true" />
+							{library.name}
+						</p>
+						<h2 class="showcase-headline">{library.headline}</h2>
+						<p class="showcase-desc">{library.description}</p>
+
+						<ul class="showcase-list">
+							{library.highlights?.map((point) => (
+								<li>
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+										<path d="m5 13 4 4L19 7" />
+									</svg>
+									<span>{point}</span>
+								</li>
+							))}
+						</ul>
+
+						<div class="showcase-actions">
+							<a class="button button-accent" href={library.start}>
+								Read the docs
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+									<path d="M5 12h14M13 6l6 6-6 6" />
+								</svg>
+							</a>
+							<span class="showcase-pkg">
+								<code>{library.package}</code>
+								<span class="showcase-pages">{library.pageCount} pages</span>
+							</span>
+						</div>
+					</div>
+
+					<div class="showcase-demo">
+						<div class="demo-frame">
+							{library.id === "buckets" && <BucketsDemo />}
+							{library.id === "step-queue" && <StepQueueDemo />}
+							{library.id === "stagehand" && <StagehandDemo />}
+							{library.id === "search" && <SearchDemo />}
+							{library.id === "braid" && <BraidDemo />}
+						</div>
+					</div>
+				</div>
+			</section>
+		))
+	}
+
+	<section class="container how">
+		<h2 class="how-title">Docs live with the code</h2>
+		<div class="how-grid">
+			<div class="how-step">
+				<span class="how-num">01</span>
+				<h3>Write in the repo</h3>
+				<p>
+					Each library owns a <code>docs/</code> folder. Pages are plain markdown, sitting next to
+					the source they describe, reviewed in the same pull request.
+				</p>
+			</div>
+			<div class="how-step">
+				<span class="how-num">02</span>
+				<h3>Declare the sidebar</h3>
+				<p>
+					A <code>docs/config.json</code> lists the sections and page order. Reordering the sidebar
+					never means renaming a file.
+				</p>
+			</div>
+			<div class="how-step">
+				<span class="how-num">03</span>
+				<h3>The site assembles it</h3>
+				<p>
+					This site holds a registry of libraries and nothing else. At build time it pulls each
+					<code>docs/</code> folder and renders everything you see.
+				</p>
+			</div>
+		</div>
+	</section>
+
+	<footer class="footer">
+		<div class="container footer-inner">
+			<span>© {new Date().getFullYear()} Michael Walker</span>
+			<a href="https://github.com/miaklwalker" target="_blank" rel="noreferrer noopener">GitHub</a>
+		</div>
+	</footer>
+</BaseLayout>
+
+<style>
+	/* --- hero ---------------------------------------------------------------- */
+
+	.hero {
+		position: relative;
+		padding-block: 6rem 3.5rem;
+		overflow: hidden;
+	}
+
+	.hero-glow {
+		position: absolute;
+		top: -20rem;
+		left: 0;
+		width: 58rem;
+		height: 38rem;
+		background:
+			radial-gradient(closest-side, color-mix(in oklab, #f59e0b 14%, transparent), transparent 70%) -19rem 0 /
+				52% 100% no-repeat,
+			radial-gradient(closest-side, color-mix(in oklab, #10b981 15%, transparent), transparent 70%) -9rem 0 /
+				52% 100% no-repeat,
+			radial-gradient(closest-side, color-mix(in oklab, #0ea5e9 16%, transparent), transparent 70%) 0 0 /
+				52% 100% no-repeat,
+			radial-gradient(closest-side, color-mix(in oklab, #8b5cf6 16%, transparent), transparent 70%) 9rem 0 /
+				52% 100% no-repeat,
+			radial-gradient(closest-side, color-mix(in oklab, #e11d48 14%, transparent), transparent 70%) 19rem 0 /
+				52% 100% no-repeat;
+		pointer-events: none;
+	}
+
+	.hero-inner {
+		position: relative;
+	}
+
+	.hero-eyebrow {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-faint);
+	}
+
+	.hero-title {
+		margin-top: 1rem;
+		font-size: clamp(2.5rem, 6.5vw, 4rem);
+		font-weight: 700;
+		letter-spacing: -0.042em;
+		line-height: 1.04;
+		text-wrap: balance;
+	}
+
+	.hero-gradient {
+		background: linear-gradient(100deg, #f59e0b, #10b981 26%, #0ea5e9 50%, #8b5cf6 74%, #e11d48);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+	}
+
+	.hero-lede {
+		max-width: 36rem;
+		margin-top: 1.375rem;
+		font-size: 1.0625rem;
+		line-height: 1.7;
+		color: var(--text-muted);
+		text-wrap: pretty;
+	}
+
+	.hero-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.625rem;
+		margin-top: 2rem;
+	}
+
+	.hero-jump {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-top: 2.5rem;
+		padding-top: 2rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.jump {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		padding: 0.3rem 0.75rem 0.3rem 0.55rem;
+		border: 1px solid var(--border);
+		border-radius: 20px;
+		font-size: 0.8125rem;
+		font-weight: 550;
+		color: var(--text-muted);
+		transition:
+			border-color 0.15s var(--ease),
+			color 0.15s var(--ease);
+	}
+	.jump:hover {
+		border-color: var(--card);
+		color: var(--text);
+	}
+	.jump-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--card);
+	}
+
+	.button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		height: 2.5rem;
+		padding-inline: 1.1rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg-elevated);
+		font-size: 0.875rem;
+		font-weight: 550;
+		color: var(--text);
+		cursor: pointer;
+		transition:
+			border-color 0.15s var(--ease),
+			transform 0.15s var(--ease);
+	}
+	.button:hover {
+		border-color: var(--border-strong);
+		transform: translateY(-1px);
+	}
+	.button kbd {
+		font-family: var(--font-sans);
+		font-size: 0.6875rem;
+		padding: 0.1rem 0.3rem;
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: var(--text-faint);
+	}
+	.button-primary {
+		background: var(--text);
+		border-color: var(--text);
+		color: var(--bg);
+	}
+	.button-primary:hover {
+		border-color: var(--text);
+		opacity: 0.9;
+	}
+
+	/* --- showcase ------------------------------------------------------------ */
+
+	.showcase {
+		padding-block: 4.5rem;
+		border-top: 1px solid var(--border);
+		scroll-margin-top: var(--header-h);
+	}
+	:global(:root.dark) .showcase {
+		--card: var(--card-dark);
+	}
+
+	.showcase-inner {
+		display: grid;
+		grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+		align-items: center;
+		gap: 3.5rem;
+	}
+
+	.showcase[data-flip] .showcase-copy {
+		order: 2;
+	}
+
+	.showcase-eyebrow {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		font-size: 0.75rem;
+		font-weight: 650;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: var(--card);
+	}
+	.showcase-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--card);
+		box-shadow: 0 0 0 3px color-mix(in oklab, var(--card) 20%, transparent);
+	}
+
+	.showcase-headline {
+		margin-top: 0.875rem;
+		font-size: clamp(1.625rem, 3vw, 2.125rem);
+		font-weight: 680;
+		letter-spacing: -0.032em;
+		line-height: 1.15;
+		text-wrap: balance;
+	}
+
+	.showcase-desc {
+		margin-top: 0.875rem;
+		font-size: 0.9375rem;
+		line-height: 1.7;
+		color: var(--text-muted);
+		text-wrap: pretty;
+	}
+
+	.showcase-list {
+		list-style: none;
+		padding: 0;
+		margin-top: 1.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+	.showcase-list li {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.6rem;
+		font-size: 0.875rem;
+		line-height: 1.55;
+		color: var(--text-muted);
+	}
+	.showcase-list svg {
+		flex-shrink: 0;
+		margin-top: 0.2rem;
+		color: var(--card);
+	}
+
+	.showcase-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.875rem;
+		margin-top: 2rem;
+	}
+
+	.button-accent {
+		background: var(--card);
+		border-color: var(--card);
+		color: #0b0b0f;
+	}
+	:global(:root:not(.dark)) .button-accent {
+		color: #fff;
+	}
+	.button-accent:hover {
+		border-color: var(--card);
+		filter: brightness(1.07);
+	}
+
+	.showcase-pkg {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+	}
+	.showcase-pkg code {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+	.showcase-pages {
+		font-size: 0.6875rem;
+		color: var(--text-faint);
+	}
+
+	.showcase-demo {
+		min-width: 0;
+	}
+
+	.demo-frame {
+		position: relative;
+		padding: 1.5rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		background: var(--bg-elevated);
+		box-shadow: 0 18px 40px -24px hsl(var(--shadow-color) / calc(var(--shadow-strength) + 22%));
+		container-type: inline-size;
+	}
+	.demo-frame::before {
+		content: "";
+		position: absolute;
+		inset: -1px;
+		border-radius: inherit;
+		padding: 1px;
+		background: linear-gradient(160deg, color-mix(in oklab, var(--card) 45%, transparent), transparent 55%);
+		-webkit-mask:
+			linear-gradient(#000 0 0) content-box,
+			linear-gradient(#000 0 0);
+		-webkit-mask-composite: xor;
+		mask-composite: exclude;
+		pointer-events: none;
+	}
+
+	@media (max-width: 900px) {
+		.showcase {
+			padding-block: 3.5rem;
+		}
+		.showcase-inner {
+			grid-template-columns: 1fr;
+			gap: 2.25rem;
+		}
+		.showcase[data-flip] .showcase-copy {
+			order: 0;
+		}
+		.demo-frame {
+			padding: 1.125rem;
+		}
+	}
+
+	/* --- how ----------------------------------------------------------------- */
+
+	.how {
+		padding-block: 4rem 5rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.how-title {
+		font-size: 1.375rem;
+		font-weight: 650;
+		letter-spacing: -0.024em;
+		margin-bottom: 2rem;
+	}
+
+	.how-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+		gap: 2rem;
+	}
+
+	.how-num {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-faint);
+	}
+
+	.how-step h3 {
+		margin-top: 0.5rem;
+		font-size: 0.9375rem;
+		font-weight: 620;
+		color: var(--text);
+	}
+
+	.how-step p {
+		margin-top: 0.5rem;
+		font-size: 0.875rem;
+		line-height: 1.7;
+		color: var(--text-muted);
+		text-wrap: pretty;
+	}
+
+	.how-step code {
+		font-family: var(--font-mono);
+		font-size: 0.8em;
+		padding: 0.1em 0.32em;
+		border-radius: 4px;
+		background: var(--bg-subtle);
+		border: 1px solid var(--border);
+		color: var(--text);
+	}
+
+	/* --- footer -------------------------------------------------------------- */
+
+	.footer {
+		border-top: 1px solid var(--border);
+		padding-block: 1.75rem;
+	}
+
+	.footer-inner {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+		font-size: 0.8125rem;
+		color: var(--text-faint);
+	}
+	.footer-inner a:hover {
+		color: var(--text);
+	}
+</style>

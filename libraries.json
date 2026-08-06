@@ -1,0 +1,70 @@
+{
+	"$schema": "./libraries.schema.json",
+	"libraries": [
+		{
+			"id": "buckets",
+			"name": "Buckets",
+			"package": "@michaelrwalker/buckets",
+			"repo": "miaklwalker/Buckets",
+			"branch": "main",
+			"docsDir": "docs",
+			"local": "../buckets",
+			"tagline": "Sort items into named buckets using boolean rules over named, async conditions.",
+			"description": "Declare named conditions over an item once, then declare buckets as boolean expressions over those conditions. Condition names, bucket names and the shape of the report are all inferred.",
+			"accent": "#f59e0b",
+			"accentDark": "#fbbf24"
+		},
+		{
+			"id": "step-queue",
+			"name": "Step Queue",
+			"package": "@michaelrwalker/step-queue",
+			"repo": "miaklwalker/step-queue",
+			"branch": "main",
+			"docsDir": "docs",
+			"local": "../step-queue",
+			"tagline": "An extremely type-safe, step-based wrapper around BullMQ.",
+			"description": "Define BullMQ jobs as a set of fully type-safe steps. Job data accumulates as it moves through the pipeline, and a retried job resumes on the exact step it left off at.",
+			"accent": "#0ea5e9",
+			"accentDark": "#38bdf8"
+		},
+		{
+			"id": "stagehand",
+			"name": "Stagehand",
+			"package": "@michaelrwalker/stagehand",
+			"repo": "miaklwalker/stagehand",
+			"branch": "main",
+			"docsDir": "docs",
+			"local": "../stagehand",
+			"tagline": "Fully typesafe saga-style script framework with modern terminal visuals.",
+			"description": "Scripts are phases, phases are steps. Steps have a handler and an optional rollback that fires when a later step fails, with a typed context threaded through the whole run.",
+			"accent": "#8b5cf6",
+			"accentDark": "#a78bfa"
+		},
+		{
+			"id": "search",
+			"name": "Search",
+			"package": "@michaelrwalker/search",
+			"repo": "miaklwalker/string-search",
+			"branch": "main",
+			"docsDir": "docs",
+			"local": "../search",
+			"tagline": "A composable, type-safe search pipeline over arrays of strings.",
+			"description": "Register the algorithms you want, hand it a dataset, and decide what order they run in and what happens when one hits. Registering an algorithm widens the pipeline's type, so an unregistered name in the run order is a compile error rather than a silent no-op.",
+			"accent": "#059669",
+			"accentDark": "#34d399"
+		},
+		{
+			"id": "braid",
+			"name": "Braid",
+			"package": "@michaelrwalker/braid",
+			"repo": "miaklwalker/braid",
+			"branch": "main",
+			"docsDir": "docs",
+			"local": "../braid",
+			"tagline": "Stitch a main collection to related detail collections with indexed, O(n + m) joins.",
+			"description": "Declare what each detail source is and how it joins. Braid indexes every source once into a Map and does a single lookup per row, so adding a fourth source costs one more pass instead of another scan per row.",
+			"accent": "#e11d48",
+			"accentDark": "#fb7185"
+		}
+	]
+}

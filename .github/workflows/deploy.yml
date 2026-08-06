@@ -1,0 +1,65 @@
+name: Deploy docs
+
+on:
+  # Changes to the site itself.
+  push:
+    branches: [main]
+  # Manual rebuild from the Actions tab.
+  workflow_dispatch:
+  # Fired by a library repo when its docs/ change. See AUTHORING.md.
+  repository_dispatch:
+    types: [docs-updated]
+  # Docs live in other repos, so pick up changes even if nobody dispatches.
+  schedule:
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; let a newer commit supersede an in-flight run.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout site
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # `npm run build` syncs docs from every registered library (sparse clone
+      # over HTTPS, public repos, no token), builds, then indexes with Pagefind.
+      # A library with a broken docs/config.json fails the build here, loudly.
+      - name: Build
+        run: npm run build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

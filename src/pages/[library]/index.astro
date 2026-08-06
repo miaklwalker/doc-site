@@ -1,0 +1,272 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { firstPage, loadNav } from "../../lib/nav.ts";
+import { loadRegistry } from "../../lib/registry.ts";
+
+export async function getStaticPaths() {
+	return loadRegistry().map((library) => ({
+		params: { library: library.id },
+		props: { library },
+	}));
+}
+
+const { library } = Astro.props;
+const nav = loadNav(library);
+const start = firstPage(nav);
+const pageCount = nav.flatMap((s) => s.links).filter((l) => !l.external).length;
+---
+
+<BaseLayout title={library.name} description={library.tagline} library={library}>
+	<div class="lib-hero">
+		<div class="container">
+			<p class="lib-eyebrow">Library</p>
+			<h1 class="lib-title">{library.name}</h1>
+			<p class="lib-tagline">{library.description}</p>
+
+			<div class="lib-actions">
+				{
+					start && (
+						<a class="button button-primary" href={start.url}>
+							Read the docs
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+								<path d="M5 12h14M13 6l6 6-6 6" />
+							</svg>
+						</a>
+					)
+				}
+				<a class="button" href={`https://github.com/${library.repo}`} target="_blank" rel="noreferrer noopener">
+					GitHub
+				</a>
+				<a class="button" href={`https://www.npmjs.com/package/${library.package}`} target="_blank" rel="noreferrer noopener">
+					npm
+				</a>
+			</div>
+
+			<div class="install">
+				<code>npm install {library.package}</code>
+				<button type="button" class="install-copy" data-install={`npm install ${library.package}`} aria-label="Copy install command">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+						<rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+					</svg>
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<div class="container">
+		<section class="contents">
+			<h2 class="contents-heading">
+				Contents
+				<span class="contents-count">{pageCount} page{pageCount === 1 ? "" : "s"}</span>
+			</h2>
+
+			<div class="contents-grid">
+				{
+					nav.map((section) => (
+						<div class="contents-section">
+							<h3 class="contents-section-title">{section.label}</h3>
+							<ul class="contents-list">
+								{section.links.map((link) => (
+									<li>
+										<a
+											class="contents-link"
+											href={link.url}
+											{...(link.external ? { target: "_blank", rel: "noreferrer noopener" } : {})}
+										>
+											{link.label}
+										</a>
+									</li>
+								))}
+							</ul>
+						</div>
+					))
+				}
+			</div>
+		</section>
+	</div>
+</BaseLayout>
+
+<style>
+	.lib-hero {
+		position: relative;
+		padding-block: 4.5rem 3rem;
+		border-bottom: 1px solid var(--border);
+		overflow: hidden;
+	}
+	.lib-hero::before {
+		content: "";
+		position: absolute;
+		top: -14rem;
+		left: 50%;
+		width: 44rem;
+		height: 28rem;
+		transform: translateX(-50%);
+		background: radial-gradient(closest-side, color-mix(in oklab, var(--accent) 18%, transparent), transparent);
+		pointer-events: none;
+	}
+	.lib-hero > .container {
+		position: relative;
+	}
+
+	.lib-eyebrow {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--accent);
+	}
+
+	.lib-title {
+		margin-top: 0.5rem;
+		font-size: clamp(2.25rem, 5vw, 3.25rem);
+		font-weight: 700;
+		letter-spacing: -0.038em;
+		line-height: 1.05;
+	}
+
+	.lib-tagline {
+		max-width: 40rem;
+		margin-top: 1rem;
+		font-size: 1.0625rem;
+		line-height: 1.65;
+		color: var(--text-muted);
+		text-wrap: pretty;
+	}
+
+	.lib-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 1.75rem;
+	}
+
+	.button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		height: 2.25rem;
+		padding-inline: 0.9rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg-elevated);
+		font-size: 0.875rem;
+		font-weight: 550;
+		color: var(--text);
+		transition: border-color 0.15s var(--ease), background 0.15s var(--ease), transform 0.15s var(--ease);
+	}
+	.button:hover {
+		border-color: var(--border-strong);
+		transform: translateY(-1px);
+	}
+	.button-primary {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--accent-contrast);
+	}
+	.button-primary:hover {
+		border-color: var(--accent);
+		filter: brightness(1.06);
+	}
+
+	.install {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 1.5rem;
+		padding: 0.4rem 0.4rem 0.4rem 0.85rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg-subtle);
+		max-width: 100%;
+		overflow-x: auto;
+	}
+	.install code {
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+		color: var(--text-muted);
+		white-space: nowrap;
+	}
+	.install-copy {
+		display: grid;
+		place-items: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		flex-shrink: 0;
+		border: 0;
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-faint);
+		cursor: pointer;
+		transition: color 0.15s var(--ease), background 0.15s var(--ease);
+	}
+	.install-copy:hover {
+		color: var(--text);
+		background: var(--bg);
+	}
+	.install-copy[data-copied="true"] {
+		color: #22c55e;
+	}
+
+	/* --- contents ----------------------------------------------------------- */
+
+	.contents {
+		padding-block: 3.5rem 5rem;
+	}
+
+	.contents-heading {
+		display: flex;
+		align-items: baseline;
+		gap: 0.625rem;
+		margin-bottom: 1.75rem;
+		font-size: 1.125rem;
+		font-weight: 650;
+		letter-spacing: -0.02em;
+	}
+	.contents-count {
+		font-size: 0.8125rem;
+		font-weight: 400;
+		color: var(--text-faint);
+	}
+
+	.contents-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+		gap: 2rem 1.5rem;
+	}
+
+	.contents-section-title {
+		margin-bottom: 0.625rem;
+		font-size: 0.6875rem;
+		font-weight: 650;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: var(--text-faint);
+	}
+
+	.contents-list {
+		list-style: none;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.contents-link {
+		font-size: 0.875rem;
+		color: var(--text-muted);
+		transition: color 0.13s var(--ease);
+	}
+	.contents-link:hover {
+		color: var(--accent);
+	}
+</style>
+
+<script>
+	document.addEventListener("click", async (e) => {
+		const button = (e.target as HTMLElement)?.closest<HTMLElement>("[data-install]");
+		if (!button) return;
+		await navigator.clipboard.writeText(button.dataset.install as string);
+		button.dataset.copied = "true";
+		setTimeout(() => delete button.dataset.copied, 1600);
+	});
+</script>

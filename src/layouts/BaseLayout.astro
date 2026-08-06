@@ -1,0 +1,84 @@
+---
+import Header from "../components/Header.astro";
+import Search from "../components/Search.astro";
+import type { Library } from "../lib/registry.ts";
+import "../styles/global.css";
+
+type Props = {
+	title: string;
+	description?: string;
+	/** When set, the page adopts this library's accent colour. */
+	library?: Library;
+	/** Docs pages manage their own full-height layout. */
+	bare?: boolean;
+};
+
+const { title, description, library, bare = false } = Astro.props;
+
+const siteName = "@michaelrwalker";
+const fullTitle = title === siteName ? title : `${title} · ${siteName}`;
+const desc = description ?? "Documentation for the @michaelrwalker TypeScript libraries.";
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{fullTitle}</title>
+		<meta name="description" content={desc} />
+		<link rel="canonical" href={canonical} />
+		<meta property="og:title" content={fullTitle} />
+		<meta property="og:description" content={desc} />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content={canonical} />
+		<meta name="twitter:card" content="summary_large_image" />
+		<link rel="sitemap" href={`${import.meta.env.BASE_URL}/sitemap-index.xml`.replace(/\/+/g, "/")} />
+		<link
+			rel="icon"
+			href={`data:image/svg+xml,${encodeURIComponent(
+				`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="${library?.accentDark ?? "#818cf8"}"/><path d="M9 21.5 14 10h1.9l5 11.5h-2.2l-1.15-2.8h-5.3l-1.1 2.8H9Zm4-4.6h3.9L15 12.3l-2 4.6Z" fill="#0b0b0f"/></svg>`,
+			)}`}
+		/>
+
+		{/* Set the theme before first paint so there is no flash. */}
+		<script is:inline>
+			(() => {
+				const stored = localStorage.getItem("theme");
+				const dark = stored ? stored === "dark" : !window.matchMedia("(prefers-color-scheme: light)").matches;
+				document.documentElement.classList.toggle("dark", dark);
+			})();
+		</script>
+
+		{/*
+			`:root:root` rather than `:root` on purpose — Astro decides where the
+			global stylesheet link lands in <head>, and a plain :root here would be a
+			coin flip on source order against the default accent in global.css.
+		*/}
+		{
+			library && (
+				<style
+					set:html={`:root:root{--accent:${library.accent};}:root:root.dark{--accent:${library.accentDark};}`}
+				/>
+			)
+		}
+	</head>
+	<body>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<Header library={library} />
+		<Search />
+		{bare ? <slot /> : <main id="main"><slot /></main>}
+
+		<script>
+			// Theme toggle. Kept tiny and inline-adjacent so it works on every page.
+			document.addEventListener("click", (e) => {
+				const btn = (e.target as HTMLElement)?.closest("[data-theme-toggle]");
+				if (!btn) return;
+				const dark = !document.documentElement.classList.contains("dark");
+				document.documentElement.classList.toggle("dark", dark);
+				localStorage.setItem("theme", dark ? "dark" : "light");
+			});
+		</script>
+	</body>
+</html>
