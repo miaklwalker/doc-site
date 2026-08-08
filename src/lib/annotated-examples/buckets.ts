@@ -1,0 +1,171 @@
+import type { AnnotatedExample } from "../annotated-code.ts";
+
+/**
+ * A shipping dispatcher (real API): raw conditions about a package, two
+ * defineComputedCondition names that layer on top of them, and four vehicle
+ * buckets — one bare reference, one ONLY, one OR-built computed condition,
+ * and one AND/NOT combination that reads as "the default lane."
+ */
+export const bucketsExample: AnnotatedExample = {
+	eyebrow: "reference",
+	title: "One script, hover to learn it",
+	subtitle: "Every highlighted token is real Buckets API — hover or tab to it for what it does.",
+	filename: "dispatch.ts",
+	docs: {
+		BucketEngine: {
+			kind: "class",
+			title: "BucketEngine",
+			body: "The fluent builder. Chain .defineCondition()/.defineComputedCondition()/.defineBucket() calls onto it — condition names, bucket names, and the report's shape are all inferred from how you call it.",
+			to: "reference/bucket-engine",
+		},
+		defineInput: {
+			kind: "method",
+			title: ".defineInput<T>()",
+			body: "Describes the shape of an item, called first before any condition. .defineInput<T>() is types-only; .defineInput(schema) also validates every item at runtime and infers T from the schema.",
+			to: "guides/conditions",
+		},
+		defineCondition: {
+			kind: "method",
+			title: ".defineCondition({ name, checkFn })",
+			body: "Registers a named predicate, evaluated once per item — in parallel, before any computed condition or bucket rule runs — no matter how many rules end up using it.",
+			to: "guides/conditions",
+		},
+		defineComputedCondition: {
+			kind: "method",
+			title: ".defineComputedCondition({ name, checkFn })",
+			body: "Names a combination of conditions once, so the name reads as a condition everywhere after. It costs nothing per item: a computed condition reads verdicts already collected, so nothing about the conditions it's built from re-runs.",
+			to: "guides/computed-conditions",
+		},
+		OR: {
+			kind: "combinator",
+			title: "OR(a, b)",
+			body: "At least one holds. needsFreight and needsSecurity are each one OR away from two raw conditions, so a bucket can reference the pair by a single name instead of repeating it.",
+			to: "guides/boolean-logic",
+		},
+		defineBucket: {
+			kind: "method",
+			title: ".defineBucket({ name, checkFn })",
+			body: "A bucket is a name plus a boolean expression over condition names — plain or computed. An item lands in every bucket whose expression it satisfies; buckets are independent, not a partition.",
+			to: "guides/buckets",
+		},
+		ONLY: {
+			kind: "combinator",
+			title: 'ONLY("isLight")',
+			body: "Exactly this condition, and every other condition false. A package that's light but also oversized does not land in regularMail — ONLY rejects it the moment isOversized is also true.",
+			to: "guides/boolean-logic",
+		},
+		AND: {
+			kind: "combinator",
+			title: "AND(a, b)",
+			body: "Every operand must hold. cargoVan is the default lane: not on the needsFreight list and not on the needsSecurity list.",
+			to: "guides/boolean-logic",
+		},
+		NOT: {
+			kind: "combinator",
+			title: "NOT(x)",
+			body: 'The operand does not hold. Paired with AND, this is how cargoVan reads as "everything neither of the other two buckets claims" without repeating every raw condition by hand.',
+			to: "guides/boolean-logic",
+		},
+		process: {
+			kind: "method",
+			title: ".process(items)",
+			body: "Runs every condition once per item, then every computed condition, then every bucket rule, and returns a report: buckets, unmatched items, and any condition that threw.",
+			to: "reference/process-output",
+		},
+		missingCombinations: {
+			kind: "method",
+			title: ".missingCombinations()",
+			body: "Lists every combination of conditions no bucket claims, before the data even runs through it — the same gap .process() would eventually surface as unmatched items, available up front instead.",
+			to: "reference/process-output",
+		},
+	},
+	lines: [
+		{ segs: [{ t: "import", c: "kw" }, " { BucketEngine } ", { t: "from", c: "kw" }, " ", { t: '"@michaelrwalker/buckets"', c: "str" }, ";"] },
+		{ segs: [] },
+		{ segs: [{ t: "interface", c: "kw" }, " Package {"] },
+		{ indent: 1, segs: [{ t: "readonly", c: "kw" }, " id: string;"] },
+		{ indent: 1, segs: [{ t: "readonly", c: "kw" }, " weightKg: number;"] },
+		{ indent: 1, segs: [{ t: "readonly", c: "kw" }, " valueUsd: number;"] },
+		{ indent: 1, segs: [{ t: "readonly", c: "kw" }, " oversized: boolean;"] },
+		{ indent: 1, segs: [{ t: "readonly", c: "kw" }, " hazardous: boolean;"] },
+		{ segs: ["}"] },
+		{ segs: [] },
+		{ segs: [{ t: "const", c: "kw" }, " dispatch = ", { t: "new", c: "kw" }, " ", { t: "BucketEngine", d: "BucketEngine" }, "()"] },
+		{ indent: 1, segs: [{ t: ".defineInput", d: "defineInput" }, "<Package>()"] },
+		{
+			indent: 1,
+			segs: [{ t: ".defineCondition", d: "defineCondition" }, "({ name: ", { t: '"isHeavy"', c: "str" }, ", checkFn: (p) => p.weightKg > 500 })"],
+		},
+		{
+			indent: 1,
+			segs: [{ t: ".defineCondition", d: "defineCondition" }, "({ name: ", { t: '"isOversized"', c: "str" }, ", checkFn: (p) => p.oversized })"],
+		},
+		{
+			indent: 1,
+			segs: [
+				{ t: ".defineCondition", d: "defineCondition" },
+				"({ name: ",
+				{ t: '"isHighValue"', c: "str" },
+				", checkFn: (p) => p.valueUsd > 10_000 })",
+			],
+		},
+		{
+			indent: 1,
+			segs: [{ t: ".defineCondition", d: "defineCondition" }, "({ name: ", { t: '"isHazardous"', c: "str" }, ", checkFn: (p) => p.hazardous })"],
+		},
+		{
+			indent: 1,
+			segs: [{ t: ".defineCondition", d: "defineCondition" }, "({ name: ", { t: '"isLight"', c: "str" }, ", checkFn: (p) => p.weightKg <= 5 })"],
+		},
+		{ indent: 1, segs: [{ t: ".defineComputedCondition", d: "defineComputedCondition" }, "({"] },
+		{ indent: 2, segs: ["name: ", { t: '"needsFreight"', c: "str" }, ","] },
+		{ indent: 2, segs: ["checkFn: ({ OR }) => ", { t: "OR", d: "OR" }, "(", { t: '"isHeavy"', c: "str" }, ", ", { t: '"isOversized"', c: "str" }, "),"] },
+		{ indent: 1, segs: ["})"] },
+		{ indent: 1, segs: [{ t: ".defineComputedCondition", d: "defineComputedCondition" }, "({"] },
+		{ indent: 2, segs: ["name: ", { t: '"needsSecurity"', c: "str" }, ","] },
+		{
+			indent: 2,
+			segs: ["checkFn: ({ OR }) => ", { t: "OR", d: "OR" }, "(", { t: '"isHighValue"', c: "str" }, ", ", { t: '"isHazardous"', c: "str" }, "),"],
+		},
+		{ indent: 1, segs: ["})"] },
+		{
+			indent: 1,
+			segs: [{ t: ".defineBucket", d: "defineBucket" }, "({ name: ", { t: '"armoredTruck"', c: "str" }, ", checkFn: () => ", { t: '"needsSecurity"', c: "str" }, " })"],
+		},
+		{
+			indent: 1,
+			segs: [{ t: ".defineBucket", d: "defineBucket" }, "({ name: ", { t: '"flatBed"', c: "str" }, ", checkFn: () => ", { t: '"needsFreight"', c: "str" }, " })"],
+		},
+		{ indent: 1, segs: [{ t: ".defineBucket", d: "defineBucket" }, "({"] },
+		{ indent: 2, segs: ["name: ", { t: '"regularMail"', c: "str" }, ","] },
+		{ indent: 2, segs: ["checkFn: ({ ONLY }) => ", { t: "ONLY", d: "ONLY" }, "(", { t: '"isLight"', c: "str" }, "),"] },
+		{ indent: 1, segs: ["})"] },
+		{ indent: 1, segs: [{ t: ".defineBucket", d: "defineBucket" }, "({"] },
+		{ indent: 2, segs: ["name: ", { t: '"cargoVan"', c: "str" }, ","] },
+		{
+			indent: 2,
+			segs: [
+				"checkFn: ({ AND, NOT }) => ",
+				{ t: "AND", d: "AND" },
+				"(",
+				{ t: "NOT", d: "NOT" },
+				"(",
+				{ t: '"needsFreight"', c: "str" },
+				"), ",
+				{ t: "NOT", d: "NOT" },
+				"(",
+				{ t: '"needsSecurity"', c: "str" },
+				")),",
+			],
+		},
+		{ segs: ["});"] },
+		{ segs: [] },
+		{ segs: [{ t: "const", c: "kw" }, " report = ", { t: "await", c: "kw" }, " dispatch", { t: ".process", d: "process" }, "(shipment);"] },
+		{ segs: [] },
+		{ segs: ["report.buckets.armoredTruck; // cash, jewelry, hazmat — highest priority"] },
+		{ segs: ["report.buckets.flatBed;      // over 500kg or oversized"] },
+		{ segs: ["report.buckets.cargoVan;     // everything else — the default lane"] },
+		{ segs: [] },
+		{ segs: ["console.log(", { t: '"uncovered:"', c: "str" }, ", dispatch", { t: ".missingCombinations", d: "missingCombinations" }, "());"] },
+	],
+};

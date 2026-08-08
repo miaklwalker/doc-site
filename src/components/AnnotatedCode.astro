@@ -1,0 +1,449 @@
+---
+/**
+ * A large, hand-tokenized code sample where the tokens that name a real API
+ * are hoverable: hovering or focusing one pops a tooltip with its docs,
+ * pulled from `docs` at build time and stamped onto the token as data
+ * attributes, so the runtime script needs no lookup table of its own.
+ */
+import { href } from "../lib/links.ts";
+import type { AnnotatedExample, DocEntry, Seg } from "../lib/annotated-code.ts";
+
+interface Props extends AnnotatedExample {
+	/** Accent color for hoverable tokens and the tooltip; defaults to the site accent. */
+	accent?: string;
+	/** Library id, used to resolve each doc entry's `to` into a real page link. */
+	libraryId: string;
+}
+
+const { eyebrow, title, subtitle, filename, lines, docs, libraryId, accent = "var(--accent)" } = Astro.props;
+
+const lineNoWidth = String(lines.length).length;
+
+function classFor(seg: Seg): string {
+	if (typeof seg === "string") return "";
+	const parts: string[] = [];
+	if (seg.c) parts.push(`tok-${seg.c}`);
+	if ("d" in seg) parts.push("hov");
+	return parts.join(" ");
+}
+
+function docFor(seg: Seg): DocEntry | undefined {
+	if (typeof seg === "string" || !("d" in seg)) return undefined;
+	return docs[seg.d];
+}
+---
+
+<section class="anno-shell" style={`--anno-accent:${accent}`}>
+	<div class="anno-head">
+		{eyebrow && <p class="anno-eyebrow">// {eyebrow}</p>}
+		<h2 class="anno-title">{title}</h2>
+		{subtitle && <p class="anno-subtitle">{subtitle}</p>}
+	</div>
+
+	<div class="annotated-code" data-annotated-code>
+		<div class="anno-bar">
+			<span class="anno-dot" style="background:#ff5f57"></span>
+			<span class="anno-dot" style="background:#febc2e"></span>
+			<span class="anno-dot" style="background:#28c840"></span>
+			{filename && <span class="anno-filename">{filename}</span>}
+			<span class="anno-hint">hover the highlighted tokens</span>
+		</div>
+
+		<pre class="anno-code"><code>{lines.map((line, i) => (
+			<span class="ln">
+				<span class="ln-num" aria-hidden="true">{String(i + 1).padStart(lineNoWidth, " ")}</span>
+				<span class="ln-src" style={line.indent ? `padding-left:${line.indent * 1.25}rem` : undefined}>{
+					line.segs.length === 0
+						? " "
+						: line.segs.map((seg) => {
+								if (typeof seg === "string") return seg;
+								const doc = docFor(seg);
+								if (!doc) return <span class={classFor(seg)}>{seg.t}</span>;
+								return (
+									<span
+										class={classFor(seg)}
+										tabindex="0"
+										role="button"
+										aria-describedby="anno-tip"
+										data-doc-id={"d" in seg ? seg.d : undefined}
+										data-doc-kind={doc.kind}
+										data-doc-title={doc.title}
+										data-doc-type={doc.type ?? ""}
+										data-doc-body={doc.body}
+										data-doc-href={doc.to ? href(libraryId, doc.to) : ""}
+									>{seg.t}</span>
+								);
+							})
+				}</span>
+			</span>
+		))}</code></pre>
+
+		<div class="doc-tip" data-doc-tip role="tooltip" id="anno-tip">
+			<div class="doc-tip-head">
+				<span class="doc-tip-kind" data-tip-kind></span>
+				<span class="doc-tip-title" data-tip-title></span>
+			</div>
+			<p class="doc-tip-type" data-tip-type></p>
+			<p class="doc-tip-body" data-tip-body></p>
+			<a class="doc-tip-link" data-tip-link href="#">Full reference →</a>
+		</div>
+	</div>
+</section>
+
+<style>
+	.anno-shell {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.anno-eyebrow {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		color: var(--anno-accent);
+	}
+
+	.anno-title {
+		margin-top: 0.375rem;
+		font-size: clamp(1.5rem, 3vw, 2rem);
+		font-weight: 700;
+		letter-spacing: -0.03em;
+	}
+
+	.anno-subtitle {
+		margin-top: 0.5rem;
+		max-width: 42rem;
+		font-size: 1rem;
+		line-height: 1.65;
+		color: var(--text-muted);
+	}
+
+	.annotated-code {
+		position: relative;
+		border-radius: var(--radius-lg);
+		border: 1px solid rgba(255, 255, 255, 0.09);
+		background:
+			linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px) 0 0 / 100% 28px,
+			linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px) 0 0 / 28px 100%,
+			#0a0a0d;
+		box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.65);
+		overflow: hidden;
+	}
+
+	.anno-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.7rem 0.9rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.02);
+	}
+
+	.anno-dot {
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.anno-filename {
+		margin-left: 0.5rem;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: #8b8b93;
+	}
+
+	.anno-hint {
+		margin-left: auto;
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		letter-spacing: 0.02em;
+		color: #52525b;
+	}
+	@media (max-width: 640px) {
+		.anno-hint {
+			display: none;
+		}
+	}
+
+	.anno-code {
+		margin: 0;
+		padding: 1.125rem 1.25rem;
+		overflow-x: auto;
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+		line-height: 1.75;
+		color: #d4d4d8;
+	}
+
+	.ln {
+		display: flex;
+		white-space: pre;
+	}
+
+	.ln-num {
+		flex-shrink: 0;
+		margin-right: 1rem;
+		text-align: right;
+		color: #3f3f46;
+		user-select: none;
+	}
+
+	.ln-src {
+		min-width: 0;
+	}
+
+	.tok-kw {
+		color: #c792ea;
+	}
+	.tok-str {
+		color: #8fd18f;
+	}
+
+	.hov {
+		border-radius: 3px;
+		padding: 0 2px;
+		margin: 0 -2px;
+		color: var(--anno-accent);
+		text-decoration: underline dotted;
+		text-decoration-color: color-mix(in oklab, var(--anno-accent) 55%, transparent);
+		text-underline-offset: 3px;
+		cursor: help;
+		transition: background 0.15s var(--ease), color 0.15s var(--ease);
+	}
+	.hov:hover,
+	.hov:focus-visible,
+	.hov[data-active="true"] {
+		background: color-mix(in oklab, var(--anno-accent) 18%, transparent);
+	}
+	.hov:focus-visible {
+		outline: 1.5px solid var(--anno-accent);
+		outline-offset: 1px;
+	}
+
+	/* --- tooltip -------------------------------------------------------- */
+
+	.doc-tip {
+		position: fixed;
+		top: 0;
+		left: 0;
+		z-index: 60;
+		width: 20rem;
+		max-width: calc(100vw - 1.5rem);
+		padding: 0.875rem 1rem;
+		border-radius: 0.625rem;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		background: #131318;
+		box-shadow: 0 20px 44px -14px rgba(0, 0, 0, 0.7);
+		opacity: 0;
+		transform: translateY(4px) scale(0.98);
+		transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+		pointer-events: none;
+	}
+	.doc-tip[data-open="true"] {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+		pointer-events: auto;
+	}
+	.doc-tip::before {
+		content: "";
+		position: absolute;
+		left: var(--caret-x, 1rem);
+		width: 10px;
+		height: 10px;
+		background: #131318;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-top: none;
+		border-left: none;
+		transform: translateX(-50%) rotate(45deg);
+		bottom: -6px;
+	}
+	.doc-tip[data-flip="true"]::before {
+		bottom: auto;
+		top: -6px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-bottom: none;
+		border-right: none;
+	}
+
+	.doc-tip-head {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.doc-tip-kind {
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--anno-accent);
+		padding: 0.1rem 0.375rem;
+		border-radius: 4px;
+		background: color-mix(in oklab, var(--anno-accent) 20%, transparent);
+	}
+
+	.doc-tip-title {
+		font-family: var(--font-mono);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: #f4f4f5;
+	}
+
+	.doc-tip-type {
+		display: none;
+		margin-top: 0.5rem;
+		padding: 0.375rem 0.5rem;
+		border-radius: 6px;
+		border: 1px solid rgba(121, 192, 255, 0.18);
+		background: rgba(121, 192, 255, 0.08);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		line-height: 1.5;
+		color: #79c0ff;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+	.doc-tip-type[data-has-type="true"] {
+		display: block;
+	}
+
+	.doc-tip-body {
+		margin-top: 0.5rem;
+		font-family: var(--font-sans);
+		font-size: 0.8125rem;
+		line-height: 1.55;
+		color: #b4b4bb;
+	}
+
+	.doc-tip-link {
+		display: none;
+		margin-top: 0.625rem;
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		color: var(--anno-accent);
+	}
+	.doc-tip-link:hover {
+		text-decoration: underline;
+	}
+	.doc-tip-link[data-has-href="true"] {
+		display: inline-block;
+	}
+</style>
+
+<script>
+	function setupAnnotatedCode(panel: HTMLElement) {
+		const tip = panel.querySelector<HTMLElement>("[data-doc-tip]");
+		if (!tip) return;
+
+		const kindEl = tip.querySelector<HTMLElement>("[data-tip-kind]");
+		const titleEl = tip.querySelector<HTMLElement>("[data-tip-title]");
+		const typeEl = tip.querySelector<HTMLElement>("[data-tip-type]");
+		const bodyEl = tip.querySelector<HTMLElement>("[data-tip-body]");
+		const linkEl = tip.querySelector<HTMLAnchorElement>("[data-tip-link]");
+		const tokens = [...panel.querySelectorAll<HTMLElement>("[data-doc-id]")];
+
+		let hideTimer = 0;
+		let current: HTMLElement | null = null;
+
+		function place(el: HTMLElement) {
+			const r = el.getBoundingClientRect();
+			tip!.style.left = "0px";
+			tip!.style.top = "0px";
+			const tw = tip!.offsetWidth;
+			const th = tip!.offsetHeight;
+			let left = r.left + r.width / 2 - tw / 2;
+			left = Math.max(12, Math.min(left, window.innerWidth - tw - 12));
+			let top = r.top - th - 12;
+			let flipped = false;
+			if (top < 12) {
+				top = r.bottom + 12;
+				flipped = true;
+			}
+			const caretX = Math.max(14, Math.min(r.left + r.width / 2 - left, tw - 14));
+			tip!.style.left = `${left}px`;
+			tip!.style.top = `${top}px`;
+			tip!.style.setProperty("--caret-x", `${caretX}px`);
+			tip!.dataset.flip = String(flipped);
+		}
+
+		function show(el: HTMLElement) {
+			window.clearTimeout(hideTimer);
+			if (current && current !== el) current.dataset.active = "false";
+			current = el;
+			el.dataset.active = "true";
+			if (kindEl) kindEl.textContent = el.dataset.docKind ?? "";
+			if (titleEl) titleEl.textContent = el.dataset.docTitle ?? "";
+			if (typeEl) {
+				const type = el.dataset.docType;
+				if (type) {
+					typeEl.textContent = type;
+					typeEl.dataset.hasType = "true";
+				} else {
+					typeEl.dataset.hasType = "false";
+				}
+			}
+			if (bodyEl) bodyEl.textContent = el.dataset.docBody ?? "";
+			if (linkEl) {
+				const href = el.dataset.docHref;
+				if (href) {
+					linkEl.href = href;
+					linkEl.dataset.hasHref = "true";
+				} else {
+					linkEl.dataset.hasHref = "false";
+				}
+			}
+			place(el);
+			tip!.dataset.open = "true";
+		}
+
+		function hideNow() {
+			tip!.dataset.open = "false";
+			if (current) current.dataset.active = "false";
+			current = null;
+		}
+
+		function scheduleHide() {
+			hideTimer = window.setTimeout(hideNow, 120);
+		}
+
+		for (const el of tokens) {
+			el.addEventListener("mouseenter", () => show(el));
+			el.addEventListener("mouseleave", scheduleHide);
+			el.addEventListener("focus", () => show(el));
+			el.addEventListener("blur", scheduleHide);
+			el.addEventListener("click", (e) => {
+				e.preventDefault();
+				if (current === el && tip!.dataset.open === "true") hideNow();
+				else show(el);
+			});
+		}
+
+		tip.addEventListener("mouseenter", () => window.clearTimeout(hideTimer));
+		tip.addEventListener("mouseleave", scheduleHide);
+
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && tip!.dataset.open === "true") {
+				current?.blur();
+				hideNow();
+			}
+		});
+
+		window.addEventListener(
+			"scroll",
+			() => {
+				if (current) hideNow();
+			},
+			{ passive: true, capture: true },
+		);
+	}
+
+	for (const panel of document.querySelectorAll<HTMLElement>("[data-annotated-code]")) {
+		setupAnnotatedCode(panel);
+	}
+</script>

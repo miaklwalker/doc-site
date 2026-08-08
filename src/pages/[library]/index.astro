@@ -1,8 +1,10 @@
 ---
+import AnnotatedCode from "../../components/AnnotatedCode.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { DEMOS } from "../../lib/demos.ts";
 import { firstPage, loadNav } from "../../lib/nav.ts";
 import { loadRegistry } from "../../lib/registry.ts";
+import { SPOTLIGHTS } from "../../lib/spotlights.ts";
 
 export async function getStaticPaths() {
 	return loadRegistry().map((library) => ({
@@ -16,6 +18,7 @@ const nav = loadNav(library);
 const start = firstPage(nav);
 const pageCount = nav.flatMap((s) => s.links).filter((l) => !l.external).length;
 const Demo = DEMOS[library.id];
+const spotlight = SPOTLIGHTS[library.id];
 
 ---
 
@@ -67,6 +70,14 @@ const Demo = DEMOS[library.id];
 			}
 		</div>
 	</div>
+
+	{
+		spotlight && (
+			<div class="container spotlight-wrap">
+				<AnnotatedCode {...spotlight} accent={library.accent} libraryId={library.id} />
+			</div>
+		)
+	}
 
 	<div class="container">
 		<section class="contents">
@@ -244,6 +255,10 @@ const Demo = DEMOS[library.id];
 	}
 	.install-copy[data-copied="true"] {
 		color: #22c55e;
+	}
+
+	.spotlight-wrap {
+		padding-block: 3.5rem 0;
 	}
 
 	/* --- contents ----------------------------------------------------------- */

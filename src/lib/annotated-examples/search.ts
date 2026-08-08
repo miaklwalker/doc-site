@@ -1,0 +1,178 @@
+import type { AnnotatedExample } from "../annotated-code.ts";
+
+/**
+ * The cheap-to-expensive cascade from the library's own README (real API):
+ * naive exact match, then KMP with a per-algorithm stopOnMatch override,
+ * then Levenshtein as the fuzzy fallback. Each .register() widens the
+ * pipeline's registered-name type, which is exactly what makes runOrder's
+ * array type-checked instead of just `string[]`.
+ */
+export const searchExample: AnnotatedExample = {
+	eyebrow: "reference",
+	title: "One pipeline, hover to learn it",
+	subtitle: "Every highlighted token is real Search API — hover or tab to it to watch the registered-name type widen with each .register().",
+	filename: "finder.ts",
+	docs: {
+		Search: {
+			kind: "class",
+			title: "Search",
+			body: "The fluent pipeline. Each .register() widens its own type parameter with that algorithm's literal name, so runOrder can only ever list algorithms you actually registered.",
+			to: "reference/search-api",
+		},
+		registerNaive: {
+			kind: "method",
+			title: ".register(algorithm, options?)",
+			type: 'Search<"naive">',
+			body: 'Adds NaiveSearch under its default name "naive" — an O(n) linear scan for an exact match. The pipeline\'s registered-name type starts here.',
+			to: "guides/run-order-and-type-safety",
+		},
+		registerKmp: {
+			kind: "method",
+			title: ".register(algorithm, options?)",
+			type: 'Search<"naive" | "kmp">',
+			body: 'Adds KMP under "kmp" — Knuth–Morris–Pratt substring search, O(n + m) per entry. The registered-name union has widened to two.',
+			to: "guides/run-order-and-type-safety",
+		},
+		stopOnMatch: {
+			kind: "option",
+			title: "stopOnMatch",
+			body: 'Shorthand for behavior: "stop-on-match", scoped to just this algorithm — overrides the pipeline\'s global defineBehavior below. KMP stops the whole pipeline the moment it hits, even though the global setting is "find-all".',
+			to: "guides/cascades",
+		},
+		registerLevenshtein: {
+			kind: "method",
+			title: ".register(algorithm, options?)",
+			type: 'Search<"naive" | "kmp" | "levenshtein">',
+			body: 'Adds Levenshtein under "levenshtein" — edit-distance matching, the one that catches typos. Three algorithms registered now, so runOrder below can name any of the three.',
+			to: "guides/run-order-and-type-safety",
+		},
+		threshold: {
+			kind: "option",
+			title: "threshold",
+			body: "Passed to the factory, not to register — configures the algorithm itself. Overrides Levenshtein's own default minimum confidence (0.7) for this pipeline.",
+			to: "guides/thresholds-and-confidence",
+		},
+		limit: {
+			kind: "option",
+			title: "limit",
+			body: "Passed to register, not the factory — configures this algorithm's place in the pipeline. Caps how many matches Levenshtein alone may contribute to the result.",
+			to: "guides/pipeline-stages",
+		},
+		defineDataset: {
+			kind: "method",
+			title: ".defineDataset(strings)",
+			body: "The array of strings every registered algorithm searches. Throws if it isn't an array of strings.",
+			to: "guides/pipeline-stages",
+		},
+		runOrder: {
+			kind: "method",
+			title: ".runOrder(names)",
+			type: 'names: Array<"naive" | "kmp" | "levenshtein">',
+			body: "Restricts and orders which registered algorithms actually run — a subset is fine, anything left out never runs. The parameter type is exactly the union .register() built up above: an unregistered or misspelled name fails to compile, not silently no-ops.",
+			to: "guides/run-order-and-type-safety",
+		},
+		defineBehavior: {
+			kind: "method",
+			title: '.defineBehavior("find-all" | "stop-on-match")',
+			body: 'The pipeline\'s global outcome behavior, "find-all" by default. In find-all every algorithm scans the whole dataset; in stop-on-match the pipeline ends at the first algorithm that hits. A per-algorithm stopOnMatch or behavior wins over this — see KMP above.',
+			to: "guides/match-behavior",
+		},
+		cullMatchedRows: {
+			kind: "method",
+			title: ".cullMatchedRows(enabled?)",
+			body: "true by default. In a find-all pipeline, once one algorithm matches a row, later algorithms in the run order skip re-scoring it — without this, a row NaiveSearch already caught still gets run through Levenshtein for a result you already had.",
+			to: "guides/culling-matched-rows",
+		},
+		search: {
+			kind: "method",
+			title: ".search(query)",
+			body: "Runs the pipeline end to end and returns a SearchResult: query, matched, best, matches, byAlgorithm, and ranAlgorithms.",
+			to: "reference/search-api",
+		},
+		matchedField: {
+			kind: "property",
+			title: "result.matched",
+			type: "boolean",
+			body: "True the moment any registered algorithm produced at least one match above its threshold.",
+			to: "guides/working-with-results",
+		},
+		bestField: {
+			kind: "property",
+			title: "result.best",
+			type: "SearchMatch | null",
+			body: "The single highest-confidence match across every algorithm that ran — null when nothing matched at all.",
+			to: "guides/working-with-results",
+		},
+		matchesField: {
+			kind: "property",
+			title: "result.matches",
+			type: "SearchMatch[]",
+			body: "Every match from every algorithm that ran, in run order and then dataset order — not deduplicated or ranked, that's what best is for.",
+			to: "guides/working-with-results",
+		},
+		ranAlgorithmsField: {
+			kind: "property",
+			title: "result.ranAlgorithms",
+			type: "string[]",
+			body: 'Shorter than runOrder whenever a stopOnMatch algorithm ends the pipeline early — here, KMP finishing it means ranAlgorithms is ["naive", "kmp"], with levenshtein never reached.',
+			to: "guides/working-with-results",
+		},
+	},
+	lines: [
+		{
+			segs: [
+				{ t: "import", c: "kw" },
+				" { KMP, Levenshtein, NaiveSearch, Search } ",
+				{ t: "from", c: "kw" },
+				" ",
+				{ t: '"@michaelrwalker/search"', c: "str" },
+				";",
+			],
+		},
+		{ segs: [] },
+		{ segs: [{ t: "const", c: "kw" }, " finder = ", { t: "new", c: "kw" }, " ", { t: "Search", d: "Search" }, "()"] },
+		{ indent: 1, segs: [{ t: ".register", d: "registerNaive" }, "(NaiveSearch())"] },
+		{ indent: 1, segs: [{ t: ".register", d: "registerKmp" }, "(KMP(), { ", { t: "stopOnMatch", d: "stopOnMatch" }, ": true })"] },
+		{
+			indent: 1,
+			segs: [
+				{ t: ".register", d: "registerLevenshtein" },
+				"(Levenshtein({ ",
+				{ t: "threshold", d: "threshold" },
+				": 0.8 }), { ",
+				{ t: "limit", d: "limit" },
+				": 5 })",
+			],
+		},
+		{ indent: 1, segs: [{ t: ".defineDataset", d: "defineDataset" }, "(models)"] },
+		{
+			indent: 1,
+			segs: [
+				{ t: ".runOrder", d: "runOrder" },
+				"([",
+				{ t: '"naive"', c: "str" },
+				", ",
+				{ t: '"kmp"', c: "str" },
+				", ",
+				{ t: '"levenshtein"', c: "str" },
+				"])",
+			],
+		},
+		{ indent: 1, segs: [{ t: ".defineBehavior", d: "defineBehavior" }, "(", { t: '"find-all"', c: "str" }, ")"] },
+		{ indent: 1, segs: [{ t: ".cullMatchedRows", d: "cullMatchedRows" }, "();"] },
+		{ segs: [] },
+		{ segs: [{ t: "const", c: "kw" }, " result = finder", { t: ".search", d: "search" }, "(", { t: '"MacBook Pr 16"', c: "str" }, ");"] },
+		{ segs: [] },
+		{ segs: ["result.", { t: "matched", d: "matchedField" }, ";"] },
+		{ segs: ["// true — something in the dataset was close enough"] },
+		{ segs: [] },
+		{ segs: ["result.", { t: "best", d: "bestField" }, ";"] },
+		{ segs: ["// SearchMatch | null — highest confidence across every algorithm"] },
+		{ segs: [] },
+		{ segs: ["result.", { t: "matches", d: "matchesField" }, ";"] },
+		{ segs: ["// SearchMatch[] — every match, in run order then dataset order"] },
+		{ segs: [] },
+		{ segs: ["result.", { t: "ranAlgorithms", d: "ranAlgorithmsField" }, ";"] },
+		{ segs: ["// string[] — shorter than runOrder when a stopOnMatch algorithm ends it early"] },
+	],
+};
