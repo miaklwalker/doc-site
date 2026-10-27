@@ -1,0 +1,377 @@
+---
+/**
+ * Edits stream in against three wizards, each lighting up the fields it
+ * touches; one edit reverts another and drops out. Then a single sync sends
+ * every dirty wizard in one bulk call — six edits, one request.
+ */
+const WIZARDS = [
+	{ id: "tom", label: "tom" },
+	{ id: "harry", label: "harry" },
+	{ id: "hermione", label: "hermione" },
+];
+const FIELDS = ["name", "house", "wand"];
+---
+
+<div class="demo" data-stage-demo>
+	<div class="panel">
+		<div class="head">
+			<span class="title">wizards.ts</span>
+			<span class="tally" data-tally>0 edits · 0 calls</span>
+		</div>
+
+		<div class="edits" data-edits aria-live="off"></div>
+
+		<div class="rows">
+			{
+				WIZARDS.map((w) => (
+					<div class="row" data-row={w.id}>
+						<span class="who">{w.label}</span>
+						<span class="chips">
+							{FIELDS.map((f) => (
+								<span class="chip" data-chip={`${w.id}:${f}`}>
+									{f}
+								</span>
+							))}
+						</span>
+						<span class="state" data-state={w.id}>
+							clean
+						</span>
+					</div>
+				))
+			}
+		</div>
+
+		<div class="net" data-net aria-live="off"></div>
+	</div>
+</div>
+
+<style>
+	.panel {
+		--hue: var(--card, var(--accent));
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		background: var(--bg-code);
+		overflow: hidden;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.head {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.55rem 0.875rem;
+		border-bottom: 1px solid var(--border);
+		background: color-mix(in oklab, var(--bg-subtle) 70%, transparent);
+		font-size: 0.6875rem;
+	}
+	.title {
+		color: var(--text-faint);
+	}
+	.tally {
+		color: var(--hue);
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.edits {
+		padding: 0.75rem 0.875rem 0.5rem;
+		/* seven lines: six edits plus the sync call */
+		height: 9.75rem;
+		font-size: 0.6875rem;
+		line-height: 1.65;
+		overflow: hidden;
+	}
+	.edits :global(.ln) {
+		display: block;
+		white-space: pre;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		animation: enter 0.25s ease-out;
+	}
+	.edits :global(.ln-sync) {
+		color: var(--text);
+	}
+	.edits :global(.str) {
+		color: #22c55e;
+	}
+	.edits :global(.dim) {
+		color: var(--text-faint);
+	}
+
+	.rows {
+		display: grid;
+		gap: 0.375rem;
+		padding: 0.625rem 0.875rem;
+		border-block: 1px dashed var(--border);
+	}
+	.row {
+		display: grid;
+		grid-template-columns: 4.5rem 1fr auto;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.who {
+		color: var(--text);
+		font-weight: 600;
+	}
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+	}
+	.chip {
+		padding: 0.05rem 0.4rem;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		font-size: 0.625rem;
+		color: var(--text-faint);
+		transition:
+			background 0.2s,
+			border-color 0.2s,
+			color 0.2s;
+	}
+	.chip[data-on] {
+		border-color: color-mix(in oklab, var(--hue) 60%, transparent);
+		background: color-mix(in oklab, var(--hue) 16%, transparent);
+		color: var(--hue);
+	}
+	.state {
+		min-width: 4.5rem;
+		text-align: right;
+		font-size: 0.625rem;
+		color: var(--text-faint);
+	}
+	.state[data-s="dirty"] {
+		color: #f59e0b;
+	}
+	.state[data-s="syncing"] {
+		color: var(--hue);
+	}
+	.state[data-s="reverted"] {
+		color: var(--text-muted);
+		font-style: italic;
+	}
+	.state[data-s="synced"] {
+		color: #22c55e;
+	}
+
+	.net {
+		padding: 0.625rem 0.875rem 0.75rem;
+		min-height: 2.75rem;
+		line-height: 1.6;
+	}
+	.net :global(.ln) {
+		display: block;
+		white-space: pre;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.net :global(.method) {
+		color: var(--hue);
+		font-weight: 700;
+	}
+	.net :global(.ok) {
+		color: #22c55e;
+	}
+	.net :global(.dim) {
+		color: var(--text-faint);
+	}
+
+	@keyframes enter {
+		from {
+			opacity: 0;
+			transform: translateY(3px);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.edits :global(.ln) {
+			animation: none;
+		}
+		.chip {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	const root = document.querySelector<HTMLElement>("[data-stage-demo]");
+	const edits = root?.querySelector<HTMLElement>("[data-edits]");
+	const net = root?.querySelector<HTMLElement>("[data-net]");
+	const tally = root?.querySelector<HTMLElement>("[data-tally]");
+
+	if (root && edits && net && tally) {
+		// Narrowing from the guard is not carried into hoisted functions.
+		const host = root;
+		const log = edits;
+		const wire = net;
+		const counter = tally;
+		const SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+		const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+		// The script being "run". `on: false` is an edit that puts a field back
+		// to its base value — the diff drops it, which is the point of the demo.
+		const EDITS = [
+			{ who: "tom", field: "name", value: "lord voldemort", on: true },
+			{ who: "harry", field: "wand", value: "holly", on: true },
+			{ who: "tom", field: "house", value: "slytherin", on: true },
+			{ who: "hermione", field: "house", value: "slytherin", on: true },
+			{ who: "tom", field: "name", value: "voldemort", on: true },
+			{ who: "hermione", field: "house", value: "gryffindor", on: false },
+		];
+
+		let run = 0;
+		let myRun = 0;
+		let playing = false;
+		const timers = new Set<{ id: number; settle: () => void }>();
+
+		// Cancelling settles pending sleeps so an abandoned playthrough can't
+		// stay suspended forever — same approach as StagehandDemo.
+		const sleep = (ms: number) =>
+			new Promise<void>((resolve) => {
+				const entry = { id: 0, settle: resolve };
+				entry.id = window.setTimeout(() => {
+					timers.delete(entry);
+					resolve();
+				}, ms);
+				timers.add(entry);
+			});
+
+		const clearTimers = () => {
+			for (const entry of timers) {
+				clearTimeout(entry.id);
+				entry.settle();
+			}
+			timers.clear();
+		};
+
+		const line = (target: HTMLElement, html: string, cls = "") => {
+			const el = document.createElement("span");
+			el.className = `ln ${cls}`.trim();
+			el.innerHTML = html;
+			target.appendChild(el);
+			return el;
+		};
+
+		const chip = (who: string, field: string) =>
+			host.querySelector<HTMLElement>(`[data-chip="${who}:${field}"]`);
+		const state = (who: string) => host.querySelector<HTMLElement>(`[data-state="${who}"]`);
+
+		const setState = (who: string, s: string) => {
+			const el = state(who);
+			if (!el) return;
+			el.dataset.s = s;
+			el.textContent = s;
+		};
+
+		const dirtyWizards = () =>
+			["tom", "harry", "hermione"].filter((who) =>
+				host.querySelector(`[data-chip^="${who}:"][data-on]`),
+			);
+
+		const editLine = (e: (typeof EDITS)[number]) =>
+			`${e.who}.update(d => { d.${e.field} = <span class="str">"${e.value}"</span> })`;
+
+		const setTally = (count: number, calls: number) => {
+			counter.textContent = `${count} edit${count === 1 ? "" : "s"} · ${calls} call${calls === 1 ? "" : "s"}`;
+		};
+
+		function resetView() {
+			log.innerHTML = "";
+			wire.innerHTML = "";
+			for (const el of host.querySelectorAll<HTMLElement>("[data-chip]")) delete el.dataset.on;
+			for (const who of ["tom", "harry", "hermione"]) setState(who, "clean");
+			setTally(0, 0);
+		}
+
+		function applyEdit(e: (typeof EDITS)[number]) {
+			const el = chip(e.who, e.field);
+			if (el) {
+				if (e.on) el.dataset.on = "";
+				else delete el.dataset.on;
+			}
+			const stillDirty = host.querySelector(`[data-chip^="${e.who}:"][data-on]`);
+			// An edit that empties the diff is the interesting case, so name it.
+			setState(e.who, stillDirty ? "dirty" : e.on ? "clean" : "reverted");
+		}
+
+		async function play() {
+			myRun = ++run;
+			resetView();
+			await sleep(500);
+
+			for (const [i, e] of EDITS.entries()) {
+				if (run !== myRun) return;
+				line(log, editLine(e));
+				applyEdit(e);
+				setTally(i + 1, 0);
+				await sleep(850);
+			}
+			if (run !== myRun) return;
+
+			line(log, `<span class="dim">await</span> stage.sync()`, "ln-sync");
+			const dirty = dirtyWizards();
+			for (const who of dirty) setState(who, "syncing");
+			await sleep(300);
+
+			const req = line(wire, "");
+			const head = `<span class="method">POST</span> /wizards/bulk  <span class="dim">${dirty.length} changes</span>`;
+			for (let frame = 0; frame < 14; frame++) {
+				if (run !== myRun) return;
+				req.innerHTML = `${head}  <span class="dim">${SPIN[frame % SPIN.length]}</span>`;
+				await sleep(80);
+			}
+			if (run !== myRun) return;
+			req.innerHTML = `${head}  <span class="ok">200</span>`;
+			for (const who of dirty) setState(who, "synced");
+			for (const el of host.querySelectorAll<HTMLElement>("[data-chip]")) delete el.dataset.on;
+			setTally(EDITS.length, 1);
+			line(wire, `<span class="ok">✔</span> ${EDITS.length} edits, 1 call <span class="dim">— hermione had nothing to send</span>`);
+
+			await sleep(3600);
+			if (run !== myRun) return;
+			play();
+		}
+
+		function renderStatic() {
+			resetView();
+			for (const e of EDITS) {
+				line(log, editLine(e));
+				applyEdit(e);
+			}
+			line(log, `<span class="dim">await</span> stage.sync()`, "ln-sync");
+			line(wire, `<span class="method">POST</span> /wizards/bulk  <span class="dim">2 changes</span>  <span class="ok">200</span>`);
+			line(wire, `<span class="ok">✔</span> ${EDITS.length} edits, 1 call <span class="dim">— hermione had nothing to send</span>`);
+			setTally(EDITS.length, 1);
+		}
+
+		if (reduced) {
+			renderStatic();
+		} else {
+			// Run by default; the observer only pauses when off screen. See the note
+			// in BucketsDemo — a demo that never starts is worse than one that runs
+			// a moment early.
+			playing = true;
+			play();
+			new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						if (entry.isIntersecting) {
+							if (!playing) {
+								playing = true;
+								play();
+							}
+						} else {
+							run++; // invalidate the in-flight run
+							playing = false;
+							clearTimers();
+						}
+					}
+				},
+				{ threshold: 0.25 },
+			).observe(root);
+		}
+	}
+</script>

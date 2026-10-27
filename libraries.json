@@ -65,6 +65,32 @@
 			"description": "Declare what each detail source is and how it joins. Braid indexes every source once into a Map and does a single lookup per row, so adding a fourth source costs one more pass instead of another scan per row.",
 			"accent": "#e11d48",
 			"accentDark": "#fb7185"
+		},
+		{
+			"id": "stage",
+			"name": "Stage",
+			"package": "@michaelrwalker/stage",
+			"repo": "miaklwalker/stage",
+			"branch": "main",
+			"docsDir": "docs",
+			"local": "../bake",
+			"tagline": "Edit values in steps with Immer drafts, then sync the net result in as few API calls as the API allows.",
+			"description": "Track a value, edit it as many times as you like, and sync once. Edits collapse per value, reverted edits send nothing, and values of the same kind go out together through a bulk endpoint in batches the API accepts. Each .entity() call widens the stage type, so an unregistered name or a value of the wrong shape is a compile error.",
+			"accent": "#0d9488",
+			"accentDark": "#2dd4bf"
+		},
+		{
+			"id": "journal",
+			"name": "Journal",
+			"package": "@michaelrwalker/journal",
+			"repo": "miaklwalker/journal",
+			"branch": "main",
+			"docsDir": "docs",
+			"local": "../journal",
+			"tagline": "A typed, file-backed journal of entries you can snapshot, mutate and revert.",
+			"description": "Snapshot what a script is about to change, save it atomically, and restore from it when the change goes wrong. Entries validate with any Standard Schema library, types are inferred from the schema, and old files migrate through a typed version chain.",
+			"accent": "#4f46e5",
+			"accentDark": "#818cf8"
 		}
 	]
 }

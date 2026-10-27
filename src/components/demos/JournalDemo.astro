@@ -1,0 +1,361 @@
+---
+/**
+ * The case Journal exists for, played out: snapshot five products and save,
+ * cut prices one by one until the shop fails on the fourth, then put every
+ * changed product back from the saved snapshot.
+ */
+const PRODUCTS = [
+	{ id: "sku-1", title: "Kettle", price: 30 },
+	{ id: "sku-2", title: "Toaster", price: 45 },
+	{ id: "sku-3", title: "Grinder", price: 60 },
+	{ id: "sku-4", title: "Scale", price: 25 },
+	{ id: "sku-5", title: "Press", price: 35 },
+];
+---
+
+<div class="demo" data-journal-demo data-products={JSON.stringify(PRODUCTS)}>
+	<div class="panel">
+		<div class="head">
+			<span class="title">reprice.ts</span>
+			<span class="file" data-file>products.json · empty</span>
+		</div>
+
+		<div class="step" data-step aria-live="off">&nbsp;</div>
+
+		<table>
+			<thead>
+				<tr>
+					<th scope="col">product</th>
+					<th scope="col" class="num">journal</th>
+					<th scope="col" class="num">shop</th>
+					<th scope="col" class="mark"><span class="sr-only">status</span></th>
+				</tr>
+			</thead>
+			<tbody>
+				{
+					PRODUCTS.map((p) => (
+						<tr data-row={p.id}>
+							<td>
+								<span class="sku">{p.id}</span> {p.title}
+							</td>
+							<td class="num saved" data-saved>
+								—
+							</td>
+							<td class="num live" data-live>
+								${p.price}
+							</td>
+							<td class="mark" data-mark></td>
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+
+		<div class="foot" data-foot aria-live="off">&nbsp;</div>
+	</div>
+</div>
+
+<style>
+	.panel {
+		--hue: var(--card, var(--accent));
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		background: var(--bg-code);
+		overflow: hidden;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.head {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.55rem 0.875rem;
+		border-bottom: 1px solid var(--border);
+		background: color-mix(in oklab, var(--bg-subtle) 70%, transparent);
+		font-size: 0.6875rem;
+	}
+	.title {
+		color: var(--text-faint);
+	}
+	.file {
+		color: var(--hue);
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.step,
+	.foot {
+		padding: 0.625rem 0.875rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.step {
+		color: var(--text);
+	}
+	.step :global(.dim),
+	.foot :global(.dim) {
+		color: var(--text-faint);
+	}
+	.foot :global(.ok) {
+		color: #22c55e;
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		border-block: 1px dashed var(--border);
+	}
+	th {
+		padding: 0.375rem 0.875rem;
+		font-weight: 500;
+		font-size: 0.625rem;
+		text-align: left;
+		color: var(--text-faint);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+	td {
+		padding: 0.3rem 0.875rem;
+		border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+		white-space: nowrap;
+	}
+	.num {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+	.mark {
+		width: 1.5rem;
+		text-align: center;
+	}
+	.sku {
+		color: var(--text-faint);
+	}
+	.saved {
+		color: var(--hue);
+		transition: opacity 0.2s;
+	}
+	.saved[data-empty] {
+		color: var(--text-faint);
+	}
+	.live {
+		color: var(--text);
+		transition: color 0.25s;
+	}
+
+	tr[data-s="changed"] .live {
+		color: #f59e0b;
+	}
+	tr[data-s="failed"] .live,
+	tr[data-s="failed"] .mark {
+		color: #ef4444;
+	}
+	tr[data-s="restored"] .live,
+	tr[data-s="restored"] .mark,
+	tr[data-s="changed"] .mark {
+		color: #22c55e;
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.saved,
+		.live {
+			transition: none;
+		}
+	}
+</style>
+
+<script>
+	type Product = { id: string; title: string; price: number };
+
+	const root = document.querySelector<HTMLElement>("[data-journal-demo]");
+	const stepEl = root?.querySelector<HTMLElement>("[data-step]");
+	const footEl = root?.querySelector<HTMLElement>("[data-foot]");
+	const fileEl = root?.querySelector<HTMLElement>("[data-file]");
+
+	if (root && stepEl && footEl && fileEl) {
+		// Narrowing from the guard is not carried into hoisted functions.
+		const host = root;
+		const step = stepEl;
+		const foot = footEl;
+		const file = fileEl;
+		const products: Product[] = JSON.parse(root.dataset.products ?? "[]");
+		const FAILS_AT = 3; // the fourth product — the shop returns a 503
+		const SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+		const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+		let run = 0;
+		let myRun = 0;
+		let playing = false;
+		const timers = new Set<{ id: number; settle: () => void }>();
+
+		// Cancelling settles pending sleeps so an abandoned playthrough can't
+		// stay suspended forever — same approach as StagehandDemo.
+		const sleep = (ms: number) =>
+			new Promise<void>((resolve) => {
+				const entry = { id: 0, settle: resolve };
+				entry.id = window.setTimeout(() => {
+					timers.delete(entry);
+					resolve();
+				}, ms);
+				timers.add(entry);
+			});
+
+		const clearTimers = () => {
+			for (const entry of timers) {
+				clearTimeout(entry.id);
+				entry.settle();
+			}
+			timers.clear();
+		};
+
+		const row = (id: string) => host.querySelector<HTMLTableRowElement>(`[data-row="${id}"]`);
+		const cell = (id: string, name: string) => row(id)?.querySelector<HTMLElement>(`[data-${name}]`);
+		const money = (n: number) => `$${n}`;
+		const cut = (n: number) => Math.round(n * 0.8);
+
+		const setRow = (id: string, s: string, live: number, mark: string) => {
+			const r = row(id);
+			if (r) r.dataset.s = s;
+			const l = cell(id, "live");
+			const m = cell(id, "mark");
+			if (l) l.textContent = money(live);
+			if (m) m.textContent = mark;
+		};
+
+		function resetView() {
+			for (const p of products) {
+				const r = row(p.id);
+				if (r) delete r.dataset.s;
+				const saved = cell(p.id, "saved");
+				if (saved) {
+					saved.textContent = "—";
+					saved.dataset.empty = "";
+				}
+				const live = cell(p.id, "live");
+				const mark = cell(p.id, "mark");
+				if (live) live.textContent = money(p.price);
+				if (mark) mark.textContent = "";
+			}
+			step.innerHTML = "&nbsp;";
+			foot.innerHTML = "&nbsp;";
+			file.textContent = "products.json · empty";
+		}
+
+		const snapshot = (p: Product) => {
+			const saved = cell(p.id, "saved");
+			if (!saved) return;
+			saved.textContent = money(p.price);
+			delete saved.dataset.empty;
+		};
+
+		/** Spin the step line for `ms` with `label`, then leave it on `label`. */
+		async function busy(label: string, ms: number) {
+			const started = performance.now();
+			let frame = 0;
+			while (performance.now() - started < ms) {
+				if (run !== myRun) return;
+				step.innerHTML = `${label} <span class="dim">${SPIN[frame++ % SPIN.length]}</span>`;
+				await sleep(80);
+			}
+			step.innerHTML = label;
+		}
+
+		async function play() {
+			myRun = ++run;
+			resetView();
+			await sleep(600);
+
+			// 1. Snapshot every product, then save before the risky part.
+			step.innerHTML = `journal.upsertEntry(product) <span class="dim">× ${products.length}</span>`;
+			for (const p of products) {
+				if (run !== myRun) return;
+				snapshot(p);
+				await sleep(160);
+			}
+			await busy("await journal.save()", 700);
+			if (run !== myRun) return;
+			file.textContent = `products.json · ${products.length} saved`;
+			await sleep(500);
+
+			// 2. The bulk change, which fails partway.
+			step.innerHTML = `shop.updateProduct(id, { price: price × 0.8 })`;
+			for (const [i, p] of products.entries()) {
+				if (run !== myRun) return;
+				await sleep(650);
+				if (run !== myRun) return;
+				if (i === FAILS_AT) {
+					setRow(p.id, "failed", p.price, "✗");
+					foot.innerHTML = `<span class="dim">503 on ${p.id} — ${i} of ${products.length} already changed</span>`;
+					break;
+				}
+				setRow(p.id, "changed", cut(p.price), "✔");
+			}
+			await sleep(1300);
+			if (run !== myRun) return;
+
+			// 3. Roll back from the saved snapshot.
+			step.innerHTML = `journal.getSavedEntry(id) <span class="dim">→ shop.updateProduct</span>`;
+			for (const p of products.slice(0, FAILS_AT)) {
+				if (run !== myRun) return;
+				await sleep(550);
+				if (run !== myRun) return;
+				setRow(p.id, "restored", p.price, "↺");
+			}
+			await sleep(300);
+			if (run !== myRun) return;
+			foot.innerHTML = `<span class="ok">✔</span> rolled back ${FAILS_AT} products <span class="dim">— the shop matches the journal</span>`;
+
+			await sleep(3600);
+			if (run !== myRun) return;
+			play();
+		}
+
+		function renderStatic() {
+			resetView();
+			for (const p of products) snapshot(p);
+			file.textContent = `products.json · ${products.length} saved`;
+			step.innerHTML = `journal.getSavedEntry(id) <span class="dim">→ shop.updateProduct</span>`;
+			for (const p of products.slice(0, FAILS_AT)) setRow(p.id, "restored", p.price, "↺");
+			const failed = products[FAILS_AT];
+			if (failed) setRow(failed.id, "failed", failed.price, "✗");
+			foot.innerHTML = `<span class="ok">✔</span> rolled back ${FAILS_AT} products <span class="dim">— the shop matches the journal</span>`;
+		}
+
+		if (reduced) {
+			renderStatic();
+		} else {
+			// Run by default; the observer only pauses when off screen. See the note
+			// in BucketsDemo — a demo that never starts is worse than one that runs
+			// a moment early.
+			playing = true;
+			play();
+			new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						if (entry.isIntersecting) {
+							if (!playing) {
+								playing = true;
+								play();
+							}
+						} else {
+							run++; // invalidate the in-flight run
+							playing = false;
+							clearTimers();
+						}
+					}
+				},
+				{ threshold: 0.25 },
+			).observe(root);
+		}
+	}
+</script>

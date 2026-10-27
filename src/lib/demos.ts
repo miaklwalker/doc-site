@@ -1,6 +1,8 @@
 import BraidDemo from "../components/demos/BraidDemo.astro";
 import BucketsDemo from "../components/demos/BucketsDemo.astro";
+import JournalDemo from "../components/demos/JournalDemo.astro";
 import SearchDemo from "../components/demos/SearchDemo.astro";
+import StageDemo from "../components/demos/StageDemo.astro";
 import StagehandDemo from "../components/demos/StagehandDemo.astro";
 import StepQueueDemo from "../components/demos/StepQueueDemo.astro";
 
@@ -15,4 +17,6 @@ export const DEMOS: Partial<Record<string, typeof BucketsDemo>> = {
 	stagehand: StagehandDemo,
 	search: SearchDemo,
 	braid: BraidDemo,
+	stage: StageDemo,
+	journal: JournalDemo,
 };
